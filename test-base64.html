@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Base64 Video Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .error { color: red; }
+        .success { color: green; }
+        pre { background: #f0f0f0; padding: 10px; overflow-x: auto; }
+        button { padding: 10px 20px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Base64 Video Decoder Test</h1>
+    <button onclick="testDecoding()">Test Base64 Decoding</button>
+    <button onclick="exportBase64()">Export Base64 to File</button>
+    <div id="results"></div>
+
+    <script src="assets/videos360.js"></script>
+    <script>
+        function testDecoding() {
+            var results = document.getElementById('results');
+            results.innerHTML = '<h2>Testing Base64 Decoding...</h2>';
+            
+            if (typeof video360Data === 'undefined') {
+                results.innerHTML += '<p class="error">video360Data is not loaded!</p>';
+                return;
+            }
+            
+            var keys = Object.keys(video360Data);
+            results.innerHTML += '<p>Found ' + keys.length + ' video(s) in video360Data</p>';
+            
+            keys.forEach(function(key, index) {
+                var videoInfo = video360Data[key];
+                var base64Data = videoInfo.data;
+                
+                results.innerHTML += '<hr><h3>Video ' + (index + 1) + ': ' + key + '</h3>';
+                results.innerHTML += '<p>MIME Type: ' + videoInfo.mime + '</p>';
+                results.innerHTML += '<p>Base64 Length: ' + base64Data.length + ' characters</p>';
+                results.innerHTML += '<p>First 200 chars: <pre>' + base64Data.substring(0, 200) + '</pre></p>';
+                results.innerHTML += '<p>Last 200 chars: <pre>' + base64Data.substring(Math.max(0, base64Data.length - 200)) + '</pre></p>';
+                
+                // Check for invalid characters
+                var invalidChars = base64Data.match(/[^A-Za-z0-9+/=]/g);
+                if (invalidChars) {
+                    results.innerHTML += '<p class="error">Invalid characters found: ' + invalidChars.slice(0, 20).join(', ') + '</p>';
+                    results.innerHTML += '<p>First invalid at position: ' + base64Data.search(/[^A-Za-z0-9+/=]/) + '</p>';
+                } else {
+                    results.innerHTML += '<p class="success">✓ No invalid characters</p>';
+                }
+                
+                // Check length is multiple of 4
+                if (base64Data.length % 4 !== 0) {
+                    results.innerHTML += '<p class="error">Length is not multiple of 4: ' + base64Data.length + ' (remainder: ' + (base64Data.length % 4) + ')</p>';
+                } else {
+                    results.innerHTML += '<p class="success">✓ Length is multiple of 4</p>';
+                }
+                
+                // Try decoding in chunks
+                results.innerHTML += '<p>Attempting chunked decoding...</p>';
+                try {
+                    var chunkSize = 1024 * 1024 * 4; // 4MB chunks
+                    chunkSize = Math.floor(chunkSize / 4) * 4;
+                    
+                    var binaryParts = [];
+                    var currentPos = 0;
+                    var chunkIndex = 0;
+                    var failedAt = null;
+                    
+                    while (currentPos < base64Data.length && !failedAt) {
+                        var chunkEnd = Math.min(currentPos + chunkSize, base64Data.length);
+                        if (chunkEnd < base64Data.length) {
+                            chunkEnd = Math.floor((chunkEnd - currentPos) / 4) * 4 + currentPos;
+                        }
+                        
+                        var chunk = base64Data.substring(currentPos, chunkEnd);
+                        
+                        try {
+                            var decoded = atob(chunk);
+                            binaryParts.push(decoded);
+                            chunkIndex++;
+                            
+                            if (chunkIndex % 10 === 0) {
+                                results.innerHTML += '<p>Processed chunk ' + chunkIndex + ' (position ' + currentPos + '-' + chunkEnd + ')</p>';
+                            }
+                        } catch (e) {
+                            failedAt = {
+                                chunk: chunkIndex,
+                                position: currentPos,
+                                end: chunkEnd,
+                                error: e.message,
+                                chunkPreview: chunk.substring(0, 200),
+                                chunkEndPreview: chunk.substring(Math.max(0, chunk.length - 200))
+                            };
+                        }
+                        
+                        currentPos = chunkEnd;
+                    }
+                    
+                    if (failedAt) {
+                        results.innerHTML += '<p class="error">✗ Decoding failed at chunk ' + failedAt.chunk + '</p>';
+                        results.innerHTML += '<p class="error">Position: ' + failedAt.position + '-' + failedAt.end + '</p>';
+                        results.innerHTML += '<p class="error">Error: ' + failedAt.error + '</p>';
+                        results.innerHTML += '<p>Chunk start: <pre>' + failedAt.chunkPreview + '</pre></p>';
+                        results.innerHTML += '<p>Chunk end: <pre>' + failedAt.chunkEndPreview + '</pre></p>';
+                        results.innerHTML += '<p>Chunk length: ' + (failedAt.end - failedAt.position) + '</p>';
+                        results.innerHTML += '<p>Chunk length % 4: ' + ((failedAt.end - failedAt.position) % 4) + '</p>';
+                    } else {
+                        var totalLength = binaryParts.reduce(function(sum, part) { return sum + part.length; }, 0);
+                        results.innerHTML += '<p class="success">✓ Successfully decoded all chunks! Total binary length: ' + totalLength + ' bytes</p>';
+                    }
+                    
+                } catch (e) {
+                    results.innerHTML += '<p class="error">✗ Error: ' + e.message + '</p>';
+                    results.innerHTML += '<pre>' + e.stack + '</pre>';
+                }
+            });
+        }
+        
+        function exportBase64() {
+            if (typeof video360Data === 'undefined') {
+                alert('video360Data is not loaded!');
+                return;
+            }
+            
+            var keys = Object.keys(video360Data);
+            keys.forEach(function(key) {
+                var videoInfo = video360Data[key];
+                var blob = new Blob([videoInfo.data], { type: 'text/plain' });
+                var url = URL.createObjectURL(blob);
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = key.replace(/\//g, '_') + '_base64.txt';
+                a.click();
+                URL.revokeObjectURL(url);
+            });
+            
+            alert('Base64 data exported! Check your downloads folder.');
+        }
+    </script>
+</body>
+</html>

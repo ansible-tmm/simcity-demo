@@ -1,0 +1,17 @@
+# macOS
+.DS_Store
+
+# Large video assets (replaced by 3D city)
+assets/360/
+assets/videos/
+*.mp4
+*.webm
+
+# Legacy PHP / static generation
+assets/videos360-manifest.js
+data/
+
+# Editor
+*.swp
+*.swo
+*~
