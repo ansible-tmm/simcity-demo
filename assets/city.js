@@ -140,25 +140,54 @@ var TelcoCity = (function () {
     makeDistrict("define", 28, 0, 0xee0000, 0xfca5a5);
   }
 
+  var DISTRICT_STYLES = {
+    oneFoundation: {
+      density: 0.75,
+      heightMult: 1.0,
+      minW: 1.2, maxW: 2.8,
+      winStyle: "grid",
+      rooftop: "antenna",
+      glassChance: 0.2,
+    },
+    automate: {
+      density: 0.78,
+      heightMult: 1.15,
+      minW: 0.9, maxW: 2.2,
+      winStyle: "horizontal",
+      rooftop: "dome",
+      glassChance: 0.35,
+    },
+    define: {
+      density: 0.7,
+      heightMult: 0.95,
+      minW: 1.4, maxW: 3.2,
+      winStyle: "scattered",
+      rooftop: "helipad",
+      glassChance: 0.15,
+    },
+  };
+
   function makeDistrict(id, cx, cz, colorHex, accentHex) {
     var group = new THREE.Group();
     group.position.set(cx, 0, cz);
     var color = new THREE.Color(colorHex);
     var accent = new THREE.Color(accentHex);
     var bList = [];
+    var style = DISTRICT_STYLES[id] || DISTRICT_STYLES.oneFoundation;
 
     for (var x = -10; x <= 10; x += 3.2) {
       for (var z = -9; z <= 9; z += 3.2) {
-        if (rand() > 0.72) continue;
+        if (rand() > style.density) continue;
         var dist = Math.sqrt(x * x + z * z);
-        var maxH = dist < 4 ? 20 : dist < 7 ? 14 : 8;
+        var maxH = (dist < 4 ? 20 : dist < 7 ? 14 : 8) * style.heightMult;
         var h = 1.5 + rand() * maxH;
-        var w = 1.1 + rand() * 1.6;
-        var d = 1.1 + rand() * 1.6;
+        var w = style.minW + rand() * (style.maxW - style.minW);
+        var d = style.minW + rand() * (style.maxW - style.minW);
         var ox = (rand() - 0.5) * 0.6;
         var oz = (rand() - 0.5) * 0.6;
+        var isGlass = rand() < style.glassChance;
 
-        var b = makeBuilding(x + ox, z + oz, w, h, d, color, accent);
+        var b = makeBuilding(x + ox, z + oz, w, h, d, color, accent, style, isGlass);
         b.userData.districtId = id;
         group.add(b);
         bList.push(b);
@@ -186,58 +215,234 @@ var TelcoCity = (function () {
     scene.add(group);
   }
 
-  function makeBuilding(x, z, w, h, d, color, accent) {
+  function makeBuilding(x, z, w, h, d, color, accent, style, isGlass) {
     var shade = new THREE.Color(0x12172a).lerp(
       color.clone(),
       0.06 + rand() * 0.12
     );
-    var geo = new THREE.BoxGeometry(w, h, d);
-    var mat = new THREE.MeshStandardMaterial({
-      color: shade,
-      roughness: 0.65,
-      metalness: 0.35,
-      emissive: color.clone().multiplyScalar(0.03),
-      emissiveIntensity: 1,
-    });
-    var mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x, h / 2, z);
-    mesh.castShadow = true;
+    var g = new THREE.Group();
+    g.position.set(x, 0, z);
 
-    var rows = Math.floor(h / 2);
-    for (var i = 0; i < rows; i++) {
-      if (rand() > 0.5) continue;
-      addWindows(mesh, w, d, h, i, accent);
+    var geo, mat, mesh;
+
+    if (isGlass) {
+      geo = new THREE.BoxGeometry(w, h, d);
+      mat = new THREE.MeshStandardMaterial({
+        color: color.clone().multiplyScalar(0.2),
+        roughness: 0.05,
+        metalness: 0.95,
+        emissive: color.clone().multiplyScalar(0.08),
+        emissiveIntensity: 1,
+        transparent: true,
+        opacity: 0.85,
+      });
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = h / 2;
+      mesh.castShadow = true;
+      g.add(mesh);
+
+      // Glass buildings get full-face window panels
+      var panelMat = new THREE.MeshBasicMaterial({
+        color: accent,
+        transparent: true,
+        opacity: 0.08 + rand() * 0.1,
+      });
+      var pf = new THREE.Mesh(new THREE.PlaneGeometry(w * 0.92, h * 0.85), panelMat);
+      pf.position.set(0, h / 2, d / 2 + 0.02);
+      g.add(pf);
+      var pb = pf.clone(); pb.position.z = -(d / 2 + 0.02); pb.rotation.y = Math.PI; g.add(pb);
+      var ps = new THREE.Mesh(new THREE.PlaneGeometry(d * 0.92, h * 0.85), panelMat.clone());
+      ps.position.set(w / 2 + 0.02, h / 2, 0); ps.rotation.y = Math.PI / 2; g.add(ps);
+      var ps2 = ps.clone(); ps2.position.x = -(w / 2 + 0.02); ps2.rotation.y = -Math.PI / 2; g.add(ps2);
+    } else {
+      geo = new THREE.BoxGeometry(w, h, d);
+      mat = new THREE.MeshStandardMaterial({
+        color: shade,
+        roughness: 0.65,
+        metalness: 0.35,
+        emissive: color.clone().multiplyScalar(0.03),
+        emissiveIntensity: 1,
+      });
+      mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = h / 2;
+      mesh.castShadow = true;
+      g.add(mesh);
     }
-    return mesh;
+
+    // Windows based on district style
+    var rows = Math.floor(h / 1.5);
+    if (style.winStyle === "grid") {
+      addWindowsGrid(g, w, d, h, rows, accent);
+    } else if (style.winStyle === "horizontal") {
+      addWindowsHorizontal(g, w, d, h, rows, accent);
+    } else {
+      addWindowsScattered(g, w, d, h, rows, accent);
+    }
+
+    // Rooftop details
+    if (h > 6 && rand() > 0.5) {
+      addRooftop(g, w, d, h, accent, style.rooftop);
+    }
+
+    return g;
   }
 
-  function addWindows(parent, w, d, h, idx, accent) {
-    var op = 0.12 + rand() * 0.45;
-    var wMat = new THREE.MeshBasicMaterial({
-      color: accent,
-      transparent: true,
-      opacity: op,
-    });
-    var y = -h / 2 + 1.2 + idx * 2;
+  function addWindowsGrid(parent, w, d, h, rows, accent) {
+    var cols = Math.max(2, Math.floor(w / 0.6));
+    var winW = (w * 0.7) / cols;
+    var winH = 0.35;
+    for (var r = 0; r < rows; r++) {
+      if (rand() > 0.7) continue;
+      var y = 1 + r * 1.5;
+      if (y > h - 0.5) break;
+      var op = 0.1 + rand() * 0.55;
+      var warmth = rand();
+      var wColor = warmth > 0.6
+        ? new THREE.Color(0xffeebb).lerp(accent, 0.3)
+        : accent;
+      var wMat = new THREE.MeshBasicMaterial({
+        color: wColor,
+        transparent: true,
+        opacity: op,
+      });
+      for (var c = 0; c < cols; c++) {
+        if (rand() > 0.75) continue;
+        var xOff = -w * 0.35 + c * (w * 0.7 / cols) + winW / 2;
+        var wg = new THREE.PlaneGeometry(winW * 0.8, winH);
+        var wm = new THREE.Mesh(wg, wMat);
+        wm.position.set(xOff, y - h / 2, d / 2 + 0.02);
+        parent.add(wm);
+        var wb = wm.clone(); wb.position.z = -(d / 2 + 0.02); wb.rotation.y = Math.PI; parent.add(wb);
+      }
+      // Sides
+      var sCols = Math.max(2, Math.floor(d / 0.6));
+      for (var sc = 0; sc < sCols; sc++) {
+        if (rand() > 0.7) continue;
+        var zOff = -d * 0.35 + sc * (d * 0.7 / sCols) + (d * 0.7 / sCols) / 2;
+        var sg = new THREE.PlaneGeometry((d * 0.7 / sCols) * 0.8, winH);
+        var sm = new THREE.Mesh(sg, wMat);
+        sm.position.set(w / 2 + 0.02, y - h / 2, zOff);
+        sm.rotation.y = Math.PI / 2;
+        parent.add(sm);
+        var sm2 = sm.clone(); sm2.position.x = -(w / 2 + 0.02); sm2.rotation.y = -Math.PI / 2; parent.add(sm2);
+      }
+    }
+  }
 
-    var wfGeo = new THREE.PlaneGeometry(w * 0.65, 0.22);
-    var wf = new THREE.Mesh(wfGeo, wMat);
-    wf.position.set(0, y, d / 2 + 0.02);
-    parent.add(wf);
-    var wb = wf.clone();
-    wb.position.z = -(d / 2 + 0.02);
-    wb.rotation.y = Math.PI;
-    parent.add(wb);
+  function addWindowsHorizontal(parent, w, d, h, rows, accent) {
+    for (var r = 0; r < rows; r++) {
+      if (rand() > 0.6) continue;
+      var y = 0.8 + r * 1.5;
+      if (y > h - 0.5) break;
+      var op = 0.1 + rand() * 0.5;
+      var warmth = rand();
+      var wColor = warmth > 0.5
+        ? new THREE.Color(0xccddff).lerp(accent, 0.4)
+        : accent;
+      var wMat = new THREE.MeshBasicMaterial({
+        color: wColor,
+        transparent: true,
+        opacity: op,
+      });
+      // Full-width horizontal bands
+      var bandH = 0.18 + rand() * 0.2;
+      var bandW = w * (0.6 + rand() * 0.3);
+      var wf = new THREE.Mesh(new THREE.PlaneGeometry(bandW, bandH), wMat);
+      wf.position.set(0, y - h / 2, d / 2 + 0.02);
+      parent.add(wf);
+      var wb = wf.clone(); wb.position.z = -(d / 2 + 0.02); wb.rotation.y = Math.PI; parent.add(wb);
+      var bandD = d * (0.6 + rand() * 0.3);
+      var sf = new THREE.Mesh(new THREE.PlaneGeometry(bandD, bandH), wMat.clone());
+      sf.position.set(w / 2 + 0.02, y - h / 2, 0); sf.rotation.y = Math.PI / 2; parent.add(sf);
+      var sb = sf.clone(); sb.position.x = -(w / 2 + 0.02); sb.rotation.y = -Math.PI / 2; parent.add(sb);
+    }
+  }
 
-    var sfGeo = new THREE.PlaneGeometry(d * 0.65, 0.22);
-    var sf = new THREE.Mesh(sfGeo, wMat.clone());
-    sf.position.set(w / 2 + 0.02, y, 0);
-    sf.rotation.y = Math.PI / 2;
-    parent.add(sf);
-    var sb = sf.clone();
-    sb.position.x = -(w / 2 + 0.02);
-    sb.rotation.y = -Math.PI / 2;
-    parent.add(sb);
+  function addWindowsScattered(parent, w, d, h, rows, accent) {
+    var count = Math.floor(3 + rand() * 8);
+    for (var i = 0; i < count; i++) {
+      var y = 0.8 + rand() * (h - 1.5);
+      var op = 0.15 + rand() * 0.6;
+      var warmth = rand();
+      var wColor = warmth > 0.4
+        ? new THREE.Color(0xffeeaa).lerp(accent, 0.2)
+        : accent;
+      var wMat = new THREE.MeshBasicMaterial({
+        color: wColor,
+        transparent: true,
+        opacity: op,
+      });
+      var ww = 0.2 + rand() * 0.5;
+      var wh = 0.2 + rand() * 0.4;
+      var face = Math.floor(rand() * 4);
+      var wMesh = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), wMat);
+      if (face === 0) {
+        wMesh.position.set((rand() - 0.5) * w * 0.7, y - h / 2, d / 2 + 0.02);
+      } else if (face === 1) {
+        wMesh.position.set((rand() - 0.5) * w * 0.7, y - h / 2, -(d / 2 + 0.02));
+        wMesh.rotation.y = Math.PI;
+      } else if (face === 2) {
+        wMesh.position.set(w / 2 + 0.02, y - h / 2, (rand() - 0.5) * d * 0.7);
+        wMesh.rotation.y = Math.PI / 2;
+      } else {
+        wMesh.position.set(-(w / 2 + 0.02), y - h / 2, (rand() - 0.5) * d * 0.7);
+        wMesh.rotation.y = -Math.PI / 2;
+      }
+      parent.add(wMesh);
+    }
+  }
+
+  function addRooftop(parent, w, d, h, accent, type) {
+    if (type === "antenna") {
+      var aGeo = new THREE.CylinderGeometry(0.03, 0.03, 1.5 + rand() * 2, 4);
+      var aMat = new THREE.MeshStandardMaterial({
+        color: 0x556677,
+        emissive: accent,
+        emissiveIntensity: 0.1,
+        metalness: 0.8,
+      });
+      var ant = new THREE.Mesh(aGeo, aMat);
+      ant.position.y = h + 0.7;
+      parent.add(ant);
+      var tipGeo = new THREE.SphereGeometry(0.06, 4, 4);
+      var tipMat = new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.8 });
+      var tip = new THREE.Mesh(tipGeo, tipMat);
+      tip.position.y = h + 1.5 + rand();
+      tip.userData._isBeacon = true;
+      parent.add(tip);
+    } else if (type === "dome") {
+      var dGeo = new THREE.SphereGeometry(Math.min(w, d) * 0.3, 8, 6, 0, Math.PI * 2, 0, Math.PI / 2);
+      var dMat = new THREE.MeshStandardMaterial({
+        color: accent,
+        emissive: accent,
+        emissiveIntensity: 0.15,
+        transparent: true,
+        opacity: 0.4,
+        roughness: 0.1,
+        metalness: 0.8,
+      });
+      var dome = new THREE.Mesh(dGeo, dMat);
+      dome.position.y = h;
+      parent.add(dome);
+    } else if (type === "helipad") {
+      var hGeo = new THREE.CylinderGeometry(Math.min(w, d) * 0.35, Math.min(w, d) * 0.35, 0.08, 16);
+      var hMat = new THREE.MeshStandardMaterial({
+        color: 0x222233,
+        emissive: accent,
+        emissiveIntensity: 0.05,
+        roughness: 0.6,
+      });
+      var hPad = new THREE.Mesh(hGeo, hMat);
+      hPad.position.y = h + 0.04;
+      parent.add(hPad);
+      var hRing = new THREE.Mesh(
+        new THREE.TorusGeometry(Math.min(w, d) * 0.28, 0.02, 6, 16),
+        new THREE.MeshBasicMaterial({ color: accent, transparent: true, opacity: 0.35 })
+      );
+      hRing.rotation.x = -Math.PI / 2;
+      hRing.position.y = h + 0.1;
+      parent.add(hRing);
+    }
   }
 
   function makeTower(x, z, color, accent) {
@@ -445,6 +650,9 @@ var TelcoCity = (function () {
     addCar({ road: "v", x: -28.8, speed: -7, phase: 10, color: 0x44ff88, headlight: 0xffddaa });
     addCar({ road: "v", x: 0.8, speed: 9, phase: 25, color: 0xdd44ff, headlight: 0xffddaa });
     addCar({ road: "v", x: 28.8, speed: -6, phase: 40, color: 0xff6644, headlight: 0xffeecc });
+
+    // Rocket launch
+    addRocketLaunch();
   }
 
   function addAirplane(cfg) {
@@ -626,6 +834,309 @@ var TelcoCity = (function () {
     });
   }
 
+  function addRocketLaunch() {
+    var padX = -55, padZ = -8;
+    var g = new THREE.Group();
+    g.position.set(padX, 0, padZ);
+
+    // Launch pad base
+    var padGeo = new THREE.CylinderGeometry(3, 3.5, 0.6, 8);
+    var padMat = new THREE.MeshStandardMaterial({
+      color: 0x3a3a4a,
+      emissive: new THREE.Color(0x222233),
+      emissiveIntensity: 0.3,
+      roughness: 0.7,
+      metalness: 0.4,
+    });
+    var pad = new THREE.Mesh(padGeo, padMat);
+    pad.position.y = 0.3;
+    g.add(pad);
+
+    // Pad markings (concentric ring)
+    var ringGeo = new THREE.TorusGeometry(2.5, 0.08, 8, 32);
+    var ringMat = new THREE.MeshBasicMaterial({
+      color: 0xff4400,
+      transparent: true,
+      opacity: 0.5,
+    });
+    var padRing = new THREE.Mesh(ringGeo, ringMat);
+    padRing.rotation.x = -Math.PI / 2;
+    padRing.position.y = 0.62;
+    g.add(padRing);
+
+    // Launch tower / gantry
+    var towerGeo = new THREE.BoxGeometry(0.3, 12, 0.3);
+    var towerMat = new THREE.MeshStandardMaterial({
+      color: 0x888899,
+      emissive: new THREE.Color(0x444455),
+      emissiveIntensity: 0.3,
+      roughness: 0.5,
+      metalness: 0.5,
+    });
+    var tower = new THREE.Mesh(towerGeo, towerMat);
+    tower.position.set(2.5, 6, 0);
+    g.add(tower);
+
+    // Gantry arm
+    var armGeo = new THREE.BoxGeometry(2.2, 0.15, 0.15);
+    var arm = new THREE.Mesh(armGeo, towerMat);
+    arm.position.set(1.4, 8, 0);
+    g.add(arm);
+
+    // Warning lights on tower
+    for (var li = 0; li < 3; li++) {
+      var wlGeo = new THREE.SphereGeometry(0.12, 4, 4);
+      var wlMat = new THREE.MeshBasicMaterial({
+        color: 0xff2200,
+        transparent: true,
+        opacity: 0.9,
+      });
+      var wl = new THREE.Mesh(wlGeo, wlMat);
+      wl.position.set(2.5, 3 + li * 4, 0);
+      wl.userData._isTowerLight = true;
+      wl.userData._towerLightIdx = li;
+      g.add(wl);
+    }
+
+    scene.add(g);
+
+    // Rocket (separate group so we can animate it independently)
+    var rocket = new THREE.Group();
+    rocket.position.set(padX, 0.6, padZ);
+
+    var bodyH = 7;
+    var segments = 12;
+
+    // Lower stage — dark metallic with cyan accent
+    var lowerH = 3.5;
+    var lowerGeo = new THREE.CylinderGeometry(0.65, 0.8, lowerH, segments);
+    var lowerMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1e2e,
+      emissive: new THREE.Color(0x0a1020),
+      emissiveIntensity: 0.2,
+      roughness: 0.2,
+      metalness: 0.85,
+    });
+    var lower = new THREE.Mesh(lowerGeo, lowerMat);
+    lower.position.y = lowerH / 2;
+    rocket.add(lower);
+
+    // Interstage ring — glowing cyan
+    var interGeo = new THREE.CylinderGeometry(0.7, 0.66, 0.25, segments);
+    var interMat = new THREE.MeshStandardMaterial({
+      color: 0x00ccff,
+      emissive: new THREE.Color(0x00aadd),
+      emissiveIntensity: 0.8,
+      roughness: 0.1,
+      metalness: 0.9,
+    });
+    var inter = new THREE.Mesh(interGeo, interMat);
+    inter.position.y = lowerH + 0.12;
+    rocket.add(inter);
+
+    // Upper stage — slightly narrower, lighter
+    var upperH = 2.5;
+    var upperGeo = new THREE.CylinderGeometry(0.45, 0.64, upperH, segments);
+    var upperMat = new THREE.MeshStandardMaterial({
+      color: 0x22263a,
+      emissive: new THREE.Color(0x111528),
+      emissiveIntensity: 0.2,
+      roughness: 0.15,
+      metalness: 0.9,
+    });
+    var upperStage = new THREE.Mesh(upperGeo, upperMat);
+    upperStage.position.y = lowerH + 0.25 + upperH / 2;
+    rocket.add(upperStage);
+
+    // Nosecone — sleek aerodynamic ogive shape (stretched cone)
+    var noseH = 2.8;
+    var noseGeo = new THREE.ConeGeometry(0.45, noseH, segments);
+    var noseMat = new THREE.MeshStandardMaterial({
+      color: 0xeeeeff,
+      emissive: new THREE.Color(0x99aacc),
+      emissiveIntensity: 0.5,
+      roughness: 0.05,
+      metalness: 0.95,
+    });
+    var nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.y = lowerH + 0.25 + upperH + noseH / 2;
+    rocket.add(nose);
+
+    // Accent LED strips along the body (vertical lines of light)
+    var stripMat = new THREE.MeshBasicMaterial({
+      color: 0x00ddff,
+      transparent: true,
+      opacity: 0.6,
+    });
+    for (var si = 0; si < 4; si++) {
+      var sAngle = (si / 4) * Math.PI * 2;
+      var stripGeo = new THREE.BoxGeometry(0.02, bodyH - 1, 0.02);
+      var strip = new THREE.Mesh(stripGeo, stripMat);
+      strip.position.set(
+        Math.cos(sAngle) * 0.72,
+        bodyH / 2 + 0.5,
+        Math.sin(sAngle) * 0.72
+      );
+      rocket.add(strip);
+    }
+
+    // Grid fins (4 angular swept fins)
+    var finMat = new THREE.MeshStandardMaterial({
+      color: 0x2a2e42,
+      emissive: new THREE.Color(0x00aaff),
+      emissiveIntensity: 0.15,
+      roughness: 0.2,
+      metalness: 0.8,
+    });
+    for (var fi = 0; fi < 4; fi++) {
+      var finShape = new THREE.Shape();
+      finShape.moveTo(0, 0);
+      finShape.lineTo(1.2, -0.3);
+      finShape.lineTo(1.0, 1.2);
+      finShape.lineTo(0, 1.6);
+      var finGeo = new THREE.ExtrudeGeometry(finShape, {
+        depth: 0.04,
+        bevelEnabled: false,
+      });
+      var fin = new THREE.Mesh(finGeo, finMat);
+      var fAngle = (fi / 4) * Math.PI * 2;
+      fin.position.set(
+        Math.cos(fAngle) * 0.75,
+        0.1,
+        Math.sin(fAngle) * 0.75
+      );
+      fin.rotation.y = -fAngle + Math.PI / 2;
+      rocket.add(fin);
+    }
+
+    // Landing legs (folded against body)
+    var legMat = new THREE.MeshStandardMaterial({
+      color: 0x333344,
+      emissive: new THREE.Color(0x222233),
+      emissiveIntensity: 0.2,
+      metalness: 0.7,
+      roughness: 0.3,
+    });
+    for (var li = 0; li < 4; li++) {
+      var lAngle = (li / 4) * Math.PI * 2 + Math.PI / 4;
+      var legGeo = new THREE.BoxGeometry(0.06, 2.5, 0.15);
+      var leg = new THREE.Mesh(legGeo, legMat);
+      leg.position.set(
+        Math.cos(lAngle) * 0.85,
+        1.2,
+        Math.sin(lAngle) * 0.85
+      );
+      leg.rotation.z = 0.12 * (li % 2 === 0 ? 1 : -1);
+      rocket.add(leg);
+    }
+
+    // Engine bell cluster (3 nozzles)
+    var nozMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1a28,
+      emissive: new THREE.Color(0x0088aa),
+      emissiveIntensity: 0.3,
+      metalness: 0.85,
+      roughness: 0.15,
+    });
+    var nozCfg = [[0, 0], [0.25, 0.15], [-0.25, 0.15]];
+    for (var ni = 0; ni < nozCfg.length; ni++) {
+      var nGeo = new THREE.CylinderGeometry(
+        ni === 0 ? 0.22 : 0.14,
+        ni === 0 ? 0.35 : 0.22,
+        0.5, segments
+      );
+      var noz = new THREE.Mesh(nGeo, nozMat);
+      noz.position.set(nozCfg[ni][0], -0.15, nozCfg[ni][1]);
+      rocket.add(noz);
+    }
+
+    scene.add(rocket);
+
+    // Exhaust flame (cone pointing down, hidden until launch)
+    var flameGroup = new THREE.Group();
+    flameGroup.position.set(padX, 0, padZ);
+    flameGroup.visible = false;
+
+    // Outer plume — blue-white
+    var flameGeo = new THREE.ConeGeometry(0.7, 5, 10);
+    var flameMat = new THREE.MeshBasicMaterial({
+      color: 0x4488ff,
+      transparent: true,
+      opacity: 0.7,
+    });
+    var flame = new THREE.Mesh(flameGeo, flameMat);
+    flame.rotation.x = Math.PI;
+    flame.position.y = -2;
+    flameGroup.add(flame);
+
+    // Mid plume — bright cyan
+    var innerFlameGeo = new THREE.ConeGeometry(0.35, 4, 10);
+    var innerFlameMat = new THREE.MeshBasicMaterial({
+      color: 0x66ddff,
+      transparent: true,
+      opacity: 0.85,
+    });
+    var innerFlame = new THREE.Mesh(innerFlameGeo, innerFlameMat);
+    innerFlame.rotation.x = Math.PI;
+    innerFlame.position.y = -1.5;
+    flameGroup.add(innerFlame);
+
+    // White-hot core
+    var coreGeo = new THREE.ConeGeometry(0.15, 3, 8);
+    var coreMat = new THREE.MeshBasicMaterial({ color: 0xeeffff });
+    var core = new THREE.Mesh(coreGeo, coreMat);
+    core.rotation.x = Math.PI;
+    core.position.y = -0.8;
+    flameGroup.add(core);
+
+    // Engine glow point light (moves with flame)
+    var engineGlow = new THREE.PointLight(0x44aaff, 8, 25, 2);
+    engineGlow.position.y = -1;
+    flameGroup.add(engineGlow);
+
+    scene.add(flameGroup);
+
+    // Smoke particles (reusable pool)
+    var smokeCount = 60;
+    var smokeGeo = new THREE.BufferGeometry();
+    var smokePos = new Float32Array(smokeCount * 3);
+    var smokeSizes = new Float32Array(smokeCount);
+    for (var si = 0; si < smokeCount; si++) {
+      smokePos[si * 3] = padX;
+      smokePos[si * 3 + 1] = -100;
+      smokePos[si * 3 + 2] = padZ;
+      smokeSizes[si] = 0.3 + Math.random() * 0.5;
+    }
+    smokeGeo.setAttribute("position", new THREE.BufferAttribute(smokePos, 3));
+    var smokeMat = new THREE.PointsMaterial({
+      color: 0xaaaaaa,
+      size: 0.8,
+      transparent: true,
+      opacity: 0.5,
+      blending: THREE.NormalBlending,
+      depthWrite: false,
+    });
+    var smoke = new THREE.Points(smokeGeo, smokeMat);
+    scene.add(smoke);
+
+    traffic.push({
+      type: "rocket",
+      rocket: rocket,
+      flame: flameGroup,
+      smoke: smoke,
+      smokeVelocities: [],
+      padX: padX,
+      padZ: padZ,
+      padY: 0.6,
+      state: "pad",
+      timer: 5,
+      launchSpeed: 0,
+      CYCLE: 30,
+      COUNTDOWN: 3,
+      FLIGHT_TIME: 10,
+    });
+  }
+
   function animateTraffic(t, dt) {
     for (var i = 0; i < traffic.length; i++) {
       var v = traffic[i];
@@ -671,6 +1182,124 @@ var TelcoCity = (function () {
           if (c.speed < 0 && v.mesh.position.z < -25) v.mesh.position.z = 20;
         }
       }
+
+      if (v.type === "rocket") {
+        v.timer -= dt;
+
+        if (v.state === "pad") {
+          // Sitting on pad, waiting for countdown
+          v.rocket.position.set(v.padX, v.padY, v.padZ);
+          v.flame.visible = false;
+          v.smoke.geometry.attributes.position.needsUpdate = true;
+
+          // Tower warning lights blink faster as countdown approaches
+          if (v.timer < 8) {
+            scene.traverse(function (obj) {
+              if (obj.userData._isTowerLight) {
+                var rate = v.timer < 3 ? 8 : 3;
+                obj.material.opacity =
+                  Math.sin(t * rate + obj.userData._towerLightIdx * 2) > 0 ? 1 : 0.15;
+              }
+            });
+          }
+
+          if (v.timer <= 0) {
+            v.state = "countdown";
+            v.timer = v.COUNTDOWN;
+            v.launchSpeed = 0;
+          }
+        }
+
+        if (v.state === "countdown") {
+          // Engine ignition - flame appears, rocket shakes
+          v.flame.visible = true;
+          v.flame.position.y = v.rocket.position.y;
+          var shake = (1 - v.timer / v.COUNTDOWN) * 0.15;
+          v.rocket.position.x = v.padX + (Math.random() - 0.5) * shake;
+          v.rocket.position.z = v.padZ + (Math.random() - 0.5) * shake;
+
+          // Flame flicker
+          var fScale = 0.3 + (1 - v.timer / v.COUNTDOWN) * 0.7;
+          fScale += Math.sin(t * 20) * 0.1;
+          v.flame.scale.set(fScale, fScale, fScale);
+
+          // Spawn smoke at base
+          spawnSmoke(v, v.padX, v.padY - 0.5, v.padZ, 3, dt);
+
+          if (v.timer <= 0) {
+            v.state = "launch";
+            v.timer = v.FLIGHT_TIME;
+            v.launchSpeed = 1;
+          }
+        }
+
+        if (v.state === "launch") {
+          // Accelerate upwards
+          v.launchSpeed += dt * 4;
+          v.rocket.position.y += v.launchSpeed * dt * 8;
+          v.rocket.position.x += (v.padX - v.rocket.position.x) * dt * 2;
+          v.rocket.position.z += (v.padZ - v.rocket.position.z) * dt * 2;
+
+          // Flame follows rocket
+          v.flame.visible = true;
+          v.flame.position.set(
+            v.rocket.position.x,
+            v.rocket.position.y,
+            v.rocket.position.z
+          );
+          var fScale = 1 + v.launchSpeed * 0.15;
+          fScale += Math.sin(t * 25) * 0.15;
+          v.flame.scale.set(fScale, fScale + v.launchSpeed * 0.1, fScale);
+
+          // Spawn smoke trail
+          spawnSmoke(v, v.rocket.position.x, v.rocket.position.y - 2, v.rocket.position.z, 5, dt);
+
+          // Rocket gone high enough - reset
+          if (v.rocket.position.y > 120 || v.timer <= 0) {
+            v.state = "pad";
+            v.timer = v.CYCLE;
+            v.rocket.position.set(v.padX, v.padY, v.padZ);
+            v.flame.visible = false;
+            v.launchSpeed = 0;
+          }
+        }
+
+        // Animate existing smoke particles (drift outward + up, fade)
+        var sp = v.smoke.geometry.attributes.position.array;
+        for (var si = 0; si < v.smokeVelocities.length; si++) {
+          var sv = v.smokeVelocities[si];
+          if (!sv) continue;
+          sp[si * 3] += sv.vx * dt;
+          sp[si * 3 + 1] += sv.vy * dt;
+          sp[si * 3 + 2] += sv.vz * dt;
+          sv.life -= dt;
+          if (sv.life <= 0) {
+            sp[si * 3 + 1] = -100;
+            v.smokeVelocities[si] = null;
+          }
+        }
+        v.smoke.geometry.attributes.position.needsUpdate = true;
+      }
+    }
+  }
+
+  var _smokeIdx = 0;
+  function spawnSmoke(v, x, y, z, rate, dt) {
+    var count = Math.ceil(rate * dt * 10);
+    var sp = v.smoke.geometry.attributes.position.array;
+    var maxSmoke = sp.length / 3;
+    for (var s = 0; s < count; s++) {
+      var idx = _smokeIdx % maxSmoke;
+      _smokeIdx++;
+      sp[idx * 3] = x + (Math.random() - 0.5) * 1.5;
+      sp[idx * 3 + 1] = y;
+      sp[idx * 3 + 2] = z + (Math.random() - 0.5) * 1.5;
+      v.smokeVelocities[idx] = {
+        vx: (Math.random() - 0.5) * 4,
+        vy: -1 + Math.random() * 2,
+        vz: (Math.random() - 0.5) * 4,
+        life: 2 + Math.random() * 2,
+      };
     }
   }
 
