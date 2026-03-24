@@ -33,6 +33,35 @@ var TelcoCity = (function () {
     },
   };
 
+  // ─── Orbit state ───
+  var orbit = {
+    dragging: false,
+    startX: 0,
+    startY: 0,
+    theta: 0,
+    phi: 0.65,
+    radius: 75,
+    target: new THREE.Vector3(0, 0, -5),
+    enabled: true,
+    userControlling: false,
+    idleTimer: 0,
+    IDLE_RESUME: 5,
+    MIN_PHI: 0.15,
+    MAX_PHI: Math.PI / 2 - 0.05,
+    MIN_RADIUS: 25,
+    MAX_RADIUS: 130,
+  };
+
+  function orbitToPosition() {
+    var sinPhi = Math.sin(orbit.phi);
+    var cosPhi = Math.cos(orbit.phi);
+    return new THREE.Vector3(
+      orbit.target.x + orbit.radius * sinPhi * Math.sin(orbit.theta),
+      orbit.target.y + orbit.radius * cosPhi,
+      orbit.target.z + orbit.radius * sinPhi * Math.cos(orbit.theta)
+    );
+  }
+
   var _seed = 42;
   function rand() {
     _seed = (_seed * 16807) % 2147483647;
@@ -79,9 +108,21 @@ var TelcoCity = (function () {
     addTraffic();
     createLabels();
 
-    renderer.domElement.addEventListener("pointermove", onPointerMove);
-    renderer.domElement.addEventListener("click", onClickHandler);
+    container.addEventListener("pointermove", onPointerMove);
+    container.addEventListener("click", onClickHandler);
+    container.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointermove", onPointerMoveDrag);
+    container.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("resize", onResize);
+
+    // Set initial orbit angles from OVERVIEW camera position
+    var dx = OVERVIEW.pos.x - orbit.target.x;
+    var dy = OVERVIEW.pos.y - orbit.target.y;
+    var dz = OVERVIEW.pos.z - orbit.target.z;
+    orbit.radius = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    orbit.phi = Math.acos(dy / orbit.radius);
+    orbit.theta = Math.atan2(dx, dz);
 
     animate();
   }
@@ -1353,11 +1394,52 @@ var TelcoCity = (function () {
     });
   }
 
+  var _dragMoved = false;
+
+  function onPointerDown(e) {
+    if (e.button !== 0) return;
+    orbit.dragging = true;
+    orbit.startX = e.clientX;
+    orbit.startY = e.clientY;
+    _dragMoved = false;
+    e.preventDefault();
+  }
+
+  function onPointerUp() {
+    orbit.dragging = false;
+  }
+
+  // Drag handler on window so it works even if pointer leaves the canvas
+  function onPointerMoveDrag(e) {
+    if (!orbit.dragging || !orbit.enabled) return;
+    var dx = e.clientX - orbit.startX;
+    var dy = e.clientY - orbit.startY;
+    if (Math.abs(dx) > 2 || Math.abs(dy) > 2) _dragMoved = true;
+    orbit.theta -= dx * 0.006;
+    orbit.phi = Math.max(orbit.MIN_PHI, Math.min(orbit.MAX_PHI, orbit.phi + dy * 0.006));
+    orbit.startX = e.clientX;
+    orbit.startY = e.clientY;
+    orbit.userControlling = true;
+    orbit.idleTimer = 0;
+  }
+
+  // Hover handler on container (for raycasting district highlights)
   function onPointerMove(e) {
-    var rect = renderer.domElement.getBoundingClientRect();
+    var rect = container.getBoundingClientRect();
     mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    checkHover();
+    if (!orbit.dragging) checkHover();
+  }
+
+  function onWheel(e) {
+    e.preventDefault();
+    if (!orbit.enabled) return;
+    orbit.radius = Math.max(
+      orbit.MIN_RADIUS,
+      Math.min(orbit.MAX_RADIUS, orbit.radius + e.deltaY * 0.08)
+    );
+    orbit.userControlling = true;
+    orbit.idleTimer = 0;
   }
 
   function checkHover() {
@@ -1403,6 +1485,7 @@ var TelcoCity = (function () {
   }
 
   function onClickHandler() {
+    if (_dragMoved) return;
     if (hoveredDistrict && !selectedDistrict && onDistrictClick) {
       zoomToDistrict(hoveredDistrict);
       onDistrictClick(hoveredDistrict);
@@ -1411,10 +1494,19 @@ var TelcoCity = (function () {
 
   function zoomToDistrict(id) {
     selectedDistrict = id;
+    orbit.userControlling = false;
     var cam = DISTRICT_CAMS[id];
     if (cam) {
       targetCamPos.copy(cam.pos);
       targetCamLook.copy(cam.look);
+      // Sync orbit state to new camera target
+      orbit.target.copy(cam.look);
+      var dx = cam.pos.x - cam.look.x;
+      var dy = cam.pos.y - cam.look.y;
+      var dz = cam.pos.z - cam.look.z;
+      orbit.radius = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      orbit.phi = Math.acos(dy / orbit.radius);
+      orbit.theta = Math.atan2(dx, dz);
     }
     hlDistrict(id, true);
   }
@@ -1423,6 +1515,15 @@ var TelcoCity = (function () {
     if (selectedDistrict) hlDistrict(selectedDistrict, false);
     selectedDistrict = null;
     hoveredDistrict = null;
+    orbit.userControlling = false;
+    orbit.target.copy(OVERVIEW.look);
+    // Sync orbit angles to overview position
+    var dx = OVERVIEW.pos.x - OVERVIEW.look.x;
+    var dy = OVERVIEW.pos.y - OVERVIEW.look.y;
+    var dz = OVERVIEW.pos.z - OVERVIEW.look.z;
+    orbit.radius = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    orbit.phi = Math.acos(dy / orbit.radius);
+    orbit.theta = Math.atan2(dx, dz);
     targetCamPos.copy(OVERVIEW.pos);
     targetCamLook.copy(OVERVIEW.look);
   }
@@ -1433,16 +1534,35 @@ var TelcoCity = (function () {
     var dt = Math.min(clock.getDelta(), 0.05);
     var t = clock.getElapsedTime();
 
-    // Smooth camera
-    camera.position.lerp(targetCamPos, dt * 2.5);
-    currentCamLook.lerp(targetCamLook, dt * 2.5);
-    camera.lookAt(currentCamLook);
+    if (orbit.userControlling) {
+      // User is actively controlling — drive camera directly from orbit angles
+      orbit.idleTimer += dt;
+      camera.position.copy(orbitToPosition());
+      camera.lookAt(orbit.target);
+      currentCamLook.copy(orbit.target);
+      targetCamPos.copy(camera.position);
+      targetCamLook.copy(orbit.target);
 
-    // Idle orbit
-    if (!selectedDistrict) {
-      _idle += dt * 0.12;
-      targetCamPos.x = OVERVIEW.pos.x + Math.sin(_idle) * 6;
-      targetCamPos.z = OVERVIEW.pos.z + Math.cos(_idle) * 4;
+      // After idle timeout, hand back to auto-rotation
+      if (orbit.idleTimer > orbit.IDLE_RESUME && !selectedDistrict && !orbit.dragging) {
+        orbit.userControlling = false;
+        _idle = orbit.theta;
+      }
+    } else if (selectedDistrict) {
+      // Zoomed into a district — smooth lerp to target
+      camera.position.lerp(targetCamPos, dt * 2.5);
+      currentCamLook.lerp(targetCamLook, dt * 2.5);
+      camera.lookAt(currentCamLook);
+    } else {
+      // Idle auto-rotation — very slow gentle spin
+      _idle += dt * 0.08;
+      orbit.theta = _idle;
+      var op = orbitToPosition();
+      camera.position.lerp(op, dt * 2.0);
+      camera.lookAt(orbit.target);
+      currentCamLook.copy(orbit.target);
+      targetCamPos.copy(op);
+      targetCamLook.copy(orbit.target);
     }
 
     // Particles drift

@@ -38,6 +38,11 @@ html, body {
     width: 100% !important;
     height: 100% !important;
     display: block;
+    cursor: grab;
+}
+
+#city-container canvas:active {
+    cursor: grabbing;
 }
 
 /* ─── Section BG Layer (image only) ─── */
@@ -157,6 +162,7 @@ html, body {
     position: absolute;
     top: 0;
     left: 0;
+    pointer-events: none;
     width: 100%;
     height: 100%;
     z-index: 3;
@@ -166,6 +172,7 @@ html, body {
     width: 100%;
     height: 100%;
     display: flex;
+    pointer-events: none;
     flex-direction: row;
     justify-content: center;
     align-items: flex-end;
@@ -175,12 +182,14 @@ html, body {
     transition: opacity 0.4s ease;
 }
 
-#landingPage.hidden {
+#landingPage.hidden,
+#landingPage.hidden .landingPageOption {
     opacity: 0;
     pointer-events: none;
 }
 
 .landingPageOption {
+    pointer-events: auto;
     width: 13vw;
     height: 27vw;
     background-repeat: no-repeat;
