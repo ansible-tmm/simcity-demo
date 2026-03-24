@@ -19,15 +19,15 @@ var TelcoCity = (function () {
   };
 
   var DISTRICT_CAMS = {
-    oneFoundation: {
+    crawl: {
       pos: new THREE.Vector3(-22, 28, 38),
       look: new THREE.Vector3(-28, 0, -2),
     },
-    automate: {
+    walk: {
       pos: new THREE.Vector3(5, 28, 38),
       look: new THREE.Vector3(0, 0, -2),
     },
-    define: {
+    run: {
       pos: new THREE.Vector3(32, 28, 38),
       look: new THREE.Vector3(28, 0, -2),
     },
@@ -177,13 +177,13 @@ var TelcoCity = (function () {
 
     // Districts
     _seed = 42;
-    makeDistrict("oneFoundation", -28, 0, 0x3b82f6, 0x93c5fd);
-    makeDistrict("automate", 0, 0, 0xa855f7, 0xd8b4fe);
-    makeDistrict("define", 28, 0, 0xee0000, 0xfca5a5);
+    makeDistrict("crawl", -28, 0, 0x3b82f6, 0x93c5fd);
+    makeDistrict("walk", 0, 0, 0xa855f7, 0xd8b4fe);
+    makeDistrict("run", 28, 0, 0xee0000, 0xfca5a5);
   }
 
   var DISTRICT_STYLES = {
-    oneFoundation: {
+    crawl: {
       density: 0.75,
       heightMult: 1.0,
       minW: 1.2, maxW: 2.8,
@@ -191,7 +191,7 @@ var TelcoCity = (function () {
       rooftop: "antenna",
       glassChance: 0.2,
     },
-    automate: {
+    walk: {
       density: 0.78,
       heightMult: 1.15,
       minW: 0.9, maxW: 2.2,
@@ -199,7 +199,7 @@ var TelcoCity = (function () {
       rooftop: "dome",
       glassChance: 0.35,
     },
-    define: {
+    run: {
       density: 0.7,
       heightMult: 0.95,
       minW: 1.4, maxW: 3.2,
@@ -215,7 +215,7 @@ var TelcoCity = (function () {
     var color = new THREE.Color(colorHex);
     var accent = new THREE.Color(accentHex);
     var bList = [];
-    var style = DISTRICT_STYLES[id] || DISTRICT_STYLES.oneFoundation;
+    var style = DISTRICT_STYLES[id] || DISTRICT_STYLES.crawl;
 
     // Road clearance: vertical road at local x=0, horizontal road at world z=14
     var vRoadHalf = 1.4;
@@ -635,9 +635,9 @@ var TelcoCity = (function () {
     var pos = new Float32Array(n * 3);
     var col = new Float32Array(n * 3);
     var accents = [
-      districts.oneFoundation.accent,
-      districts.automate.accent,
-      districts.define.accent,
+      districts.crawl.accent,
+      districts.walk.accent,
+      districts.run.accent,
     ];
     for (var i = 0; i < n; i++) {
       pos[i * 3] = (Math.random() - 0.5) * 130;
@@ -1466,14 +1466,14 @@ var TelcoCity = (function () {
     container.appendChild(labelContainer);
 
     var names = {
-      oneFoundation: "One Foundation",
-      automate: "Automate",
-      define: "Define Network",
+      crawl: "Crawl",
+      walk: "Walk",
+      run: "Run",
     };
     var colors = {
-      oneFoundation: "#3b82f6",
-      automate: "#a855f7",
-      define: "#ef4444",
+      crawl: "#3b82f6",
+      walk: "#a855f7",
+      run: "#ef4444",
     };
     Object.keys(names).forEach(function (k) {
       var el = document.createElement("div");

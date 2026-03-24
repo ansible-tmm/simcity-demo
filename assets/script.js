@@ -93,21 +93,52 @@ var hotSpotData = [
 
 $(document).ready(function () {
   var folderMapping = {
-    oneFoundation: "02-Common-Cloud",
-    automate: "03-Autonomous-intel",
-    define: "04-Define-your-net",
+    crawl: "02-Common-Cloud",
+    walk: "03-Autonomous-intel",
+    run: "04-Define-your-net",
   };
 
   var contentFolderMapping = {
-    oneFoundation: "content/1-One_foundation_for_everything",
-    automate: "content/2-Automate_intelligently",
-    define: "content/3-Define_your_network_with_AI",
+    crawl: "content/1-One_foundation_for_everything",
+    walk: "content/2-Automate_intelligently",
+    run: "content/3-Define_your_network_with_AI",
   };
 
   var districtColors = {
-    oneFoundation: "#3b82f6",
-    automate: "#a855f7",
-    define: "#ef4444",
+    crawl: "#3b82f6",
+    walk: "#a855f7",
+    run: "#ef4444",
+  };
+
+  // Custom district headings (icon + title) and menu items
+  var districtHeadings = {
+    crawl: {
+      icon: "assets/images/ansible-icon.png",
+      title: "Crawl",
+    },
+    walk: {
+      icon: "assets/images/ansible-icon.png",
+      title: "Walk",
+    },
+    run: {
+      icon: "assets/images/ansible-icon.png",
+      title: "Run",
+    },
+  };
+
+  var districtMenuOverrides = {
+    crawl: [
+      { label: "Incident + ticket enrichment", folder: "1-Hybrid-Cloud" },
+      { label: "Cost + resource optimization", folder: "2-Comm-Cloud" },
+    ],
+    walk: [
+      { label: "Intelligent capacity orchestration", folder: "1-Trad-Oper" },
+      { label: "Curated automation remediation", folder: "2-Autonomous-net" },
+    ],
+    run: [
+      { label: "System-level drift and policy enforcement", folder: "1-Oper-AI" },
+      { label: "Self-healing infrastructure", folder: "2-Lifecycle-man" },
+    ],
   };
 
   var currentFolderName = null;
@@ -131,13 +162,23 @@ $(document).ready(function () {
     currentFolderName = folderName;
     currentContentFolder = contentFolderMapping[districtId] || null;
 
-    var headingImagePath =
-      "assets/images/" + folderName + "/00-Bar Menu/Demo-name.png";
-    $("#page-heading")
-      .css("background-image", 'url("' + headingImagePath + '")')
-      .addClass("visible");
+    var heading = districtHeadings[districtId];
+    var $ph = $("#page-heading");
+    $ph.empty().css("background-image", "none");
+    if (heading) {
+      if (heading.icon) {
+        $ph.append(
+          '<img src="' + heading.icon + '" class="heading-icon" alt="">'
+        );
+      }
+      $ph.append(
+        '<span class="heading-title">' + heading.title + "</span>"
+      );
+    }
+    $ph.addClass("visible");
 
     $("#landingPage").addClass("hidden");
+    $("#aiops-header").addClass("hidden");
     $("#bottom-menu").addClass("visible");
 
     setTimeout(function () {
@@ -182,6 +223,7 @@ $(document).ready(function () {
 
     setTimeout(function () {
       $("#landingPage").removeClass("hidden");
+      $("#aiops-header").removeClass("hidden");
       currentFolderName = null;
       currentContentFolder = null;
       currentDistrictId = null;
@@ -470,6 +512,25 @@ $(document).ready(function () {
     var $menu = $("#main-menu");
     $menu.empty();
     contentFolder = contentFolder || "";
+
+    var overrides = districtMenuOverrides[currentDistrictId];
+    if (overrides) {
+      for (var i = 0; i < overrides.length; i++) {
+        var ov = overrides[i];
+        var contentPath = contentFolder ? contentFolder + "/" + ov.folder : "";
+        var menuItemId = "menu-item-" + (i + 1);
+        var accent = districtColors[currentDistrictId] || "#3b82f6";
+
+        var $menuItem = $("<div>")
+          .attr("id", menuItemId)
+          .addClass("menu-item menu-item-text")
+          .data("content-path", contentPath)
+          .text(ov.label);
+
+        $menu.append($menuItem);
+      }
+      return;
+    }
 
     fetchFolderStructure(folderName, function (childFolders) {
       var maxItems = 3;
