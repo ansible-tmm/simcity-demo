@@ -1517,7 +1517,7 @@ var TelcoCity = (function () {
       var el = labelEls[k];
       if (!el) return;
       var wp = districts[k].group.position.clone();
-      wp.y = 28;
+      wp.y = 7;
       var sp = wp.project(camera);
       var x = (sp.x * 0.5 + 0.5) * container.clientWidth;
       var y = (-sp.y * 0.5 + 0.5) * container.clientHeight;

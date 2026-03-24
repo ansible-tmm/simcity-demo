@@ -145,6 +145,13 @@ html, body {
     opacity: 1;
 }
 
+.image-overlay.embed-active {
+    pointer-events: auto;
+    background: rgba(0, 0, 0, 0.85);
+    padding: 4% 8%;
+    box-sizing: border-box;
+}
+
 .image-overlay.popout-overlay {
     background-color: rgba(41, 41, 41, 0.9);
     pointer-events: auto;

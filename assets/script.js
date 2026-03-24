@@ -137,7 +137,7 @@ $(document).ready(function () {
     ],
     run: [
       { label: "System-level drift and policy enforcement", folder: "1-Oper-AI" },
-      { label: "Self-healing infrastructure", folder: "2-Lifecycle-man" },
+      { label: "Self-healing infrastructure", folder: "2-Lifecycle-man", embed: "https://demo.arcade.software/QIkx7TMuu22RDi0nUjRA?embed&embed_mobile=tab&embed_desktop=inline&show_copy_link=true" },
     ],
   };
 
@@ -280,6 +280,7 @@ $(document).ready(function () {
     currentContentPath = null;
     currentContentFilename = null;
     hideCloseBtn();
+    clearEmbedIframe();
     fadeOutCurrentContent(function () {
       $("#image-overlay")
         .removeClass("visible popout-overlay")
@@ -466,6 +467,36 @@ $(document).ready(function () {
     });
   }
 
+  // ─── Display Arcade Embed ───
+  function displayEmbed(embedUrl) {
+    var $imageOverlay = $("#image-overlay");
+    currentContentPath = null;
+    currentContentFilename = null;
+
+    fadeOutCurrentContent(function () {
+      $imageOverlay.css("background-image", "none").removeClass("popout-overlay");
+      $imageOverlay.addClass("embed-active");
+      $imageOverlay.html(
+        '<iframe src="' + embedUrl + '" ' +
+        'title="Arcade Demo" frameborder="0" loading="lazy" ' +
+        'webkitallowfullscreen mozallowfullscreen allowfullscreen ' +
+        'allow="clipboard-write" ' +
+        'style="width:100%;height:100%;border:none;border-radius:8px;color-scheme:light;"></iframe>'
+      );
+      setTimeout(function () {
+        $imageOverlay.addClass("visible");
+        showCloseBtn();
+      }, 10);
+    });
+  }
+
+  function clearEmbedIframe() {
+    var $imageOverlay = $("#image-overlay");
+    if ($imageOverlay.find("iframe").length) {
+      $imageOverlay.removeClass("embed-active").html("");
+    }
+  }
+
   // ─── Display Media Asset ───
   function displayMediaAsset(contentPath, filename) {
     var ext = filename.split(".").pop().toLowerCase();
@@ -526,6 +557,10 @@ $(document).ready(function () {
           .addClass("menu-item menu-item-text")
           .data("content-path", contentPath)
           .text(ov.label);
+
+        if (ov.embed) {
+          $menuItem.data("embed-url", ov.embed);
+        }
 
         $menu.append($menuItem);
       }
@@ -733,15 +768,20 @@ $(document).ready(function () {
         $clickedItem.css("background-image", 'url("' + activImage + '")');
       }
 
-      var contentPath = $clickedItem.data("content-path");
-      if (contentPath) {
-        fetchAndShowMedia(contentPath);
+      var embedUrl = $clickedItem.data("embed-url");
+      if (embedUrl) {
+        displayEmbed(embedUrl);
       } else {
-        fadeOutCurrentContent(function () {
-          $("#image-overlay")
-            .removeClass("visible popout-overlay")
-            .css("background-image", "");
-        });
+        var contentPath = $clickedItem.data("content-path");
+        if (contentPath) {
+          fetchAndShowMedia(contentPath);
+        } else {
+          fadeOutCurrentContent(function () {
+            $("#image-overlay")
+              .removeClass("visible popout-overlay")
+              .css("background-image", "");
+          });
+        }
       }
     } else {
       hideOverlayContent();
