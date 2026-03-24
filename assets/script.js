@@ -472,6 +472,8 @@ $(document).ready(function () {
     contentFolder = contentFolder || "";
 
     fetchFolderStructure(folderName, function (childFolders) {
+      var maxItems = 3;
+      if (childFolders.length > maxItems) childFolders = childFolders.slice(0, maxItems);
       var processFolder = function (index) {
         if (index >= childFolders.length) return;
         var folder = childFolders[index];

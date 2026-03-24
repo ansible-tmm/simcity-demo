@@ -698,13 +698,13 @@ var TelcoCity = (function () {
       accentColor: 0x88aaff,
     });
 
-    // Cars on roads (offset ±0.35 from road center for two lanes)
-    addCar({ road: "h", z: 14.35, speed: 10, phase: 0, color: 0xff4444, headlight: 0xffddaa });
-    addCar({ road: "h", z: 13.65, speed: -8, phase: 30, color: 0x44aaff, headlight: 0xffddaa });
-    addCar({ road: "h", z: 14.35, speed: 12, phase: 55, color: 0xffaa22, headlight: 0xffeecc });
+    // Cars on vertical roads only (horizontal road is for the train)
     addCar({ road: "v", x: -28.35, speed: -7, phase: 10, color: 0x44ff88, headlight: 0xffddaa });
-    addCar({ road: "v", x: 0.35, speed: 9, phase: 25, color: 0xdd44ff, headlight: 0xffddaa });
-    addCar({ road: "v", x: 28.35, speed: -6, phase: 40, color: 0xff6644, headlight: 0xffeecc });
+    addCar({ road: "v", x: -27.65, speed: 9, phase: -15, color: 0xff4444, headlight: 0xffddaa });
+    addCar({ road: "v", x: 0.35, speed: 9, phase: 5, color: 0xdd44ff, headlight: 0xffddaa });
+    addCar({ road: "v", x: -0.35, speed: -6, phase: -10, color: 0x44aaff, headlight: 0xffddaa });
+    addCar({ road: "v", x: 28.35, speed: -6, phase: 0, color: 0xff6644, headlight: 0xffeecc });
+    addCar({ road: "v", x: 27.65, speed: 8, phase: -18, color: 0xffaa22, headlight: 0xffeecc });
 
     // Rocket launch
     addRocketLaunch();
@@ -770,43 +770,136 @@ var TelcoCity = (function () {
     var g = new THREE.Group();
     var carWidth = 2.2;
     var carGap = 0.3;
-    var totalLen = cfg.cars * (carWidth + carGap);
 
-    // Engine
-    var engGeo = new THREE.BoxGeometry(carWidth, 0.7, 1.0);
+    // ── Futuristic engine car ──
+    var engGroup = new THREE.Group();
+    engGroup.position.set(0, 0, 0);
+
+    // Main engine body — sleek tapered shape
+    var engBodyGeo = new THREE.BoxGeometry(3.0, 0.8, 1.0);
     var engMat = new THREE.MeshStandardMaterial({
-      color: cfg.color,
+      color: 0x1a2040,
       emissive: new THREE.Color(cfg.accentColor),
-      emissiveIntensity: 0.8,
-      roughness: 0.3,
-      metalness: 0.4,
+      emissiveIntensity: 0.6,
+      roughness: 0.15,
+      metalness: 0.85,
     });
-    var engine = new THREE.Mesh(engGeo, engMat);
-    engine.position.set(0, 0.35, 0);
-    g.add(engine);
+    var engBody = new THREE.Mesh(engBodyGeo, engMat);
+    engBody.position.y = 0.4;
+    engGroup.add(engBody);
 
-    // Headlight
-    var hlGeo = new THREE.SphereGeometry(0.15, 4, 4);
-    var hlMat = new THREE.MeshBasicMaterial({ color: 0xffffcc });
-    var hl = new THREE.Mesh(hlGeo, hlMat);
-    hl.position.set(carWidth / 2 + 0.05, 0.4, 0);
-    g.add(hl);
+    // Aerodynamic nose cone (wedge front)
+    var noseShape = new THREE.Shape();
+    noseShape.moveTo(0, 0);
+    noseShape.lineTo(1.2, 0);
+    noseShape.lineTo(0, 0.5);
+    var noseGeo = new THREE.ExtrudeGeometry(noseShape, { depth: 0.9, bevelEnabled: false });
+    var noseMat = new THREE.MeshStandardMaterial({
+      color: 0x222850,
+      emissive: new THREE.Color(cfg.accentColor),
+      emissiveIntensity: 0.4,
+      roughness: 0.1,
+      metalness: 0.9,
+    });
+    var nose = new THREE.Mesh(noseGeo, noseMat);
+    nose.position.set(1.5, 0.05, -0.45);
+    engGroup.add(nose);
 
-    // Freight cars
-    var carColors = [0x5577bb, 0x7755aa, 0x55aa77, 0xaa7755, 0x6688cc];
-    var carEmissive = [0x3355aa, 0x5533aa, 0x33aa55, 0xaa5533, 0x4466bb];
+    // Windshield — glowing strip across the front
+    var wsGeo = new THREE.PlaneGeometry(0.6, 0.2);
+    var wsMat = new THREE.MeshBasicMaterial({
+      color: 0x66ddff,
+      transparent: true,
+      opacity: 0.9,
+    });
+    var ws = new THREE.Mesh(wsGeo, wsMat);
+    ws.position.set(1.3, 0.65, 0);
+    ws.rotation.y = Math.PI / 2;
+    engGroup.add(ws);
+
+    // Roof accent stripe (glowing line along top)
+    var roofGeo = new THREE.BoxGeometry(3.0, 0.04, 0.15);
+    var roofMat = new THREE.MeshBasicMaterial({
+      color: cfg.accentColor,
+      transparent: true,
+      opacity: 0.7,
+    });
+    var roof = new THREE.Mesh(roofGeo, roofMat);
+    roof.position.set(0, 0.82, 0);
+    engGroup.add(roof);
+
+    // Side LED strips
+    var sideLedGeo = new THREE.BoxGeometry(2.8, 0.04, 0.02);
+    var sideLedMat = new THREE.MeshBasicMaterial({
+      color: cfg.accentColor,
+      transparent: true,
+      opacity: 0.6,
+    });
+    var sLed1 = new THREE.Mesh(sideLedGeo, sideLedMat);
+    sLed1.position.set(0, 0.25, 0.52);
+    engGroup.add(sLed1);
+    var sLed2 = sLed1.clone();
+    sLed2.position.z = -0.52;
+    engGroup.add(sLed2);
+
+    // Headlights (dual bright spots)
+    var hlGeo = new THREE.SphereGeometry(0.1, 6, 6);
+    var hlMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    var hl1 = new THREE.Mesh(hlGeo, hlMat);
+    hl1.position.set(2.6, 0.35, 0.25);
+    engGroup.add(hl1);
+    var hl2 = new THREE.Mesh(hlGeo, hlMat);
+    hl2.position.set(2.6, 0.35, -0.25);
+    engGroup.add(hl2);
+
+    // Headlight glow
+    var hlGlow = new THREE.PointLight(0xaaddff, 2, 8, 2);
+    hlGlow.position.set(2.8, 0.35, 0);
+    engGroup.add(hlGlow);
+
+    // Tail light
+    var tlGeo = new THREE.BoxGeometry(0.05, 0.15, 0.6);
+    var tlMat = new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.8 });
+    var tl = new THREE.Mesh(tlGeo, tlMat);
+    tl.position.set(-1.52, 0.35, 0);
+    engGroup.add(tl);
+
+    g.add(engGroup);
+
+    // ── Passenger / cargo cars ──
+    var carColors = [0x1e2850, 0x252060, 0x1a3050, 0x2a2055, 0x1e2848];
+    var carAccents = [0x4488ff, 0x8855ff, 0x44ffaa, 0xff8844, 0x55aaff];
     for (var i = 1; i < cfg.cars; i++) {
-      var cGeo = new THREE.BoxGeometry(carWidth, 0.6, 0.9);
+      var cGroup = new THREE.Group();
+      var cx = -i * (carWidth + carGap) - 1.0;
+
+      var cGeo = new THREE.BoxGeometry(carWidth, 0.65, 0.9);
       var cMat = new THREE.MeshStandardMaterial({
         color: carColors[i % carColors.length],
-        emissive: new THREE.Color(carEmissive[i % carEmissive.length]),
-        emissiveIntensity: 0.5,
-        roughness: 0.5,
-        metalness: 0.3,
+        emissive: new THREE.Color(carAccents[i % carAccents.length]),
+        emissiveIntensity: 0.35,
+        roughness: 0.2,
+        metalness: 0.7,
       });
-      var car = new THREE.Mesh(cGeo, cMat);
-      car.position.set(-i * (carWidth + carGap), 0.3, 0);
-      g.add(car);
+      var carBody = new THREE.Mesh(cGeo, cMat);
+      carBody.position.set(cx, 0.32, 0);
+      cGroup.add(carBody);
+
+      // Car window strip
+      var cwGeo = new THREE.BoxGeometry(carWidth * 0.8, 0.08, 0.02);
+      var cwMat = new THREE.MeshBasicMaterial({
+        color: carAccents[i % carAccents.length],
+        transparent: true,
+        opacity: 0.4,
+      });
+      var cw1 = new THREE.Mesh(cwGeo, cwMat);
+      cw1.position.set(cx, 0.48, 0.47);
+      cGroup.add(cw1);
+      var cw2 = cw1.clone();
+      cw2.position.z = -0.47;
+      cGroup.add(cw2);
+
+      g.add(cGroup);
     }
 
     g.position.set(-70, cfg.y, cfg.z);
@@ -816,7 +909,6 @@ var TelcoCity = (function () {
       type: "train",
       mesh: g,
       cfg: cfg,
-      totalLen: totalLen,
     });
   }
 
