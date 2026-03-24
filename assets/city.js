@@ -145,17 +145,18 @@ var TelcoCity = (function () {
     scene.add(grid);
 
     // Roads
+    var roadW = 1.6;
     var roadMat = new THREE.MeshStandardMaterial({
       color: 0x131825,
       roughness: 0.85,
     });
-    var hRoad = new THREE.Mesh(new THREE.PlaneGeometry(130, 3.5), roadMat);
+    var hRoad = new THREE.Mesh(new THREE.PlaneGeometry(130, roadW), roadMat);
     hRoad.rotation.x = -Math.PI / 2;
     hRoad.position.set(0, 0.03, 14);
     scene.add(hRoad);
 
     [-28, 0, 28].forEach(function (x) {
-      var vRoad = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 40), roadMat);
+      var vRoad = new THREE.Mesh(new THREE.PlaneGeometry(roadW, 40), roadMat);
       vRoad.rotation.x = -Math.PI / 2;
       vRoad.position.set(x, 0.03, -4);
       scene.add(vRoad);
@@ -168,7 +169,7 @@ var TelcoCity = (function () {
       opacity: 0.4,
     });
     for (var mx = -60; mx <= 60; mx += 8) {
-      var mark = new THREE.Mesh(new THREE.PlaneGeometry(3, 0.2), markMat);
+      var mark = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.12), markMat);
       mark.rotation.x = -Math.PI / 2;
       mark.position.set(mx, 0.04, 14);
       scene.add(mark);
@@ -216,10 +217,10 @@ var TelcoCity = (function () {
     var bList = [];
     var style = DISTRICT_STYLES[id] || DISTRICT_STYLES.oneFoundation;
 
-    // Road clearance: vertical road runs through local x=0, horizontal road at world z=14
-    var vRoadHalf = 2.8;
+    // Road clearance: vertical road at local x=0, horizontal road at world z=14
+    var vRoadHalf = 1.4;
     var hRoadWorldZ = 14;
-    var hRoadHalf = 2.8;
+    var hRoadHalf = 1.4;
 
     for (var x = -10; x <= 10; x += 3.2) {
       for (var z = -9; z <= 9; z += 3.2) {
@@ -697,13 +698,13 @@ var TelcoCity = (function () {
       accentColor: 0x88aaff,
     });
 
-    // Cars on roads
-    addCar({ road: "h", z: 14.8, speed: 10, phase: 0, color: 0xff4444, headlight: 0xffddaa });
-    addCar({ road: "h", z: 13.2, speed: -8, phase: 30, color: 0x44aaff, headlight: 0xffddaa });
-    addCar({ road: "h", z: 14.8, speed: 12, phase: 55, color: 0xffaa22, headlight: 0xffeecc });
-    addCar({ road: "v", x: -28.8, speed: -7, phase: 10, color: 0x44ff88, headlight: 0xffddaa });
-    addCar({ road: "v", x: 0.8, speed: 9, phase: 25, color: 0xdd44ff, headlight: 0xffddaa });
-    addCar({ road: "v", x: 28.8, speed: -6, phase: 40, color: 0xff6644, headlight: 0xffeecc });
+    // Cars on roads (offset ±0.35 from road center for two lanes)
+    addCar({ road: "h", z: 14.35, speed: 10, phase: 0, color: 0xff4444, headlight: 0xffddaa });
+    addCar({ road: "h", z: 13.65, speed: -8, phase: 30, color: 0x44aaff, headlight: 0xffddaa });
+    addCar({ road: "h", z: 14.35, speed: 12, phase: 55, color: 0xffaa22, headlight: 0xffeecc });
+    addCar({ road: "v", x: -28.35, speed: -7, phase: 10, color: 0x44ff88, headlight: 0xffddaa });
+    addCar({ road: "v", x: 0.35, speed: 9, phase: 25, color: 0xdd44ff, headlight: 0xffddaa });
+    addCar({ road: "v", x: 28.35, speed: -6, phase: 40, color: 0xff6644, headlight: 0xffeecc });
 
     // Rocket launch
     addRocketLaunch();

@@ -137,14 +137,6 @@ $(document).ready(function () {
       .css("background-image", 'url("' + headingImagePath + '")')
       .addClass("visible");
 
-    buildBottomMenuPopout(folderName, currentContentFolder);
-
-    var deactivImagePath =
-      "assets/images/" +
-      folderName +
-      "/00-Bar Menu/Hamb-menu/hamb-menu-deactiv.png";
-    $("#btnMenu").css("background-image", 'url("' + deactivImagePath + '")');
-
     $("#landingPage").addClass("hidden");
     $("#bottom-menu").addClass("visible");
 
@@ -186,16 +178,6 @@ $(document).ready(function () {
   $("#btnHome").on("click", function () {
     $("#page-heading").removeClass("visible");
     $("#bottom-menu").removeClass("visible");
-    $("#bottom-menu-items-popout").removeClass("visible");
-
-    if (currentFolderName) {
-      var deactivImagePath =
-        "assets/images/" +
-        currentFolderName +
-        "/00-Bar Menu/Hamb-menu/hamb-menu-deactiv.png";
-      $("#btnMenu").css("background-image", 'url("' + deactivImagePath + '")');
-    }
-
     $("#main-menu").removeClass("visible");
 
     setTimeout(function () {
@@ -208,42 +190,6 @@ $(document).ready(function () {
     }, 400);
   });
 
-  // ─── Menu Button ───
-  $("#btnMenu").on("click", function () {
-    if (!currentFolderName) return;
-    var $popout = $("#bottom-menu-items-popout");
-    var isVisible = $popout.hasClass("visible");
-
-    if (isVisible) {
-      $popout.removeClass("visible");
-      var deactivImagePath =
-        "assets/images/" +
-        currentFolderName +
-        "/00-Bar Menu/Hamb-menu/hamb-menu-deactiv.png";
-      $("#btnMenu").css("background-image", 'url("' + deactivImagePath + '")');
-    } else {
-      $popout.addClass("visible");
-      var activImagePath =
-        "assets/images/" +
-        currentFolderName +
-        "/00-Bar Menu/Hamb-menu/Activ/hamb-menu-activ.png";
-      $("#btnMenu").css("background-image", 'url("' + activImagePath + '")');
-    }
-  });
-
-  // ─── Security ───
-  $("#btnSecurity").on("click", function () {
-    var overlayPath = "assets/videos/5-Security-overlay.png";
-    hideSectionBg();
-    hideHotspots();
-    $("#image-overlay")
-      .css("background-image", 'url("' + overlayPath + '")')
-      .addClass("popout-overlay");
-    setTimeout(function () {
-      $("#image-overlay").addClass("visible");
-      showCloseBtn();
-    }, 10);
-  });
 
   // ─── Close Button + Escape ───
   var $closeBtn = $("#overlay-close-btn");
@@ -687,64 +633,6 @@ $(document).ready(function () {
     callback(shortenedName + "-Deactiv.png", shortenedName + "-Activ.png");
   }
 
-  // ─── Bottom Menu Popout ───
-  function buildBottomMenuPopout(folderName, contentFolder) {
-    var $popout = $("#bottom-menu-items-popout");
-    $popout.empty();
-    var activFolderPath = folderName + "/00-Bar Menu/Hamb-menu/Activ";
-
-    function buildButtons(activImages, overlayImages) {
-      var menuImages = activImages.filter(function (img) {
-        return img.toLowerCase() !== "hamb-menu-activ.png";
-      });
-      var overlays = overlayImages || [];
-      for (var i = 0; i < menuImages.length; i++) {
-        var buttonImagePath =
-          "assets/images/" + activFolderPath + "/" + menuImages[i];
-        var overlayPath = overlays[i]
-          ? "assets/images/" + contentFolder + "/0-Overlays/" + overlays[i]
-          : "";
-        var $button = $("<div>")
-          .addClass("bottom-menu-popout-button")
-          .css("background-image", 'url("' + buttonImagePath + '")')
-          .attr("data-overlay-path", overlayPath);
-        $popout.append($button);
-      }
-    }
-
-    if (!contentFolder) {
-      buildButtons(getStaticData(activFolderPath, "images") || [], []);
-      return;
-    }
-    var overlaysPath = contentFolder + "/0-Overlays";
-    buildButtons(
-      getStaticData(activFolderPath, "images") || [],
-      getStaticData(overlaysPath, "images") || []
-    );
-  }
-
-  // Bottom menu popout button click
-  $(document).on("click", ".bottom-menu-popout-button", function () {
-    var overlayPath = $(this).attr("data-overlay-path");
-    if (!overlayPath) return;
-    hideSectionBg();
-    hideHotspots();
-    $("#image-overlay")
-      .css("background-image", 'url("' + overlayPath + '")')
-      .addClass("popout-overlay");
-    setTimeout(function () {
-      $("#image-overlay").addClass("visible");
-      showCloseBtn();
-    }, 10);
-    $("#bottom-menu-items-popout").removeClass("visible");
-    if (currentFolderName) {
-      var deactivImagePath =
-        "assets/images/" +
-        currentFolderName +
-        "/00-Bar Menu/Hamb-menu/hamb-menu-deactiv.png";
-      $("#btnMenu").css("background-image", 'url("' + deactivImagePath + '")');
-    }
-  });
 
   // Click popout overlay to dismiss
   $("#image-overlay").on("click", function () {

@@ -344,59 +344,6 @@ html, body {
     cursor: pointer;
 }
 
-#btnHome { order: 1; }
-#btnMenu { order: 2; }
-#btnSecurity { order: 3; }
-
-#bottom-menu.right #btnSecurity { order: 1; }
-#bottom-menu.right #btnMenu { order: 2; }
-#bottom-menu.right #btnHome { order: 3; }
-
-#bottom-menu-items-popout {
-    position: absolute;
-    display: flex;
-    flex-direction: column;
-    gap: 0.7vh;
-    width: 12.5vw;
-    bottom: 8.5vh;
-    left: 0;
-    z-index: 10;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s ease;
-}
-
-#bottom-menu.right #bottom-menu-items-popout {
-    left: auto;
-    right: 0;
-}
-
-#bottom-menu-items-popout.visible {
-    opacity: 1;
-    pointer-events: auto;
-}
-
-.bottom-menu-popout-button {
-    width: 100%;
-    height: 2.9vh;
-    background-repeat: no-repeat;
-    background-size: contain;
-    background-position: left center;
-    cursor: pointer;
-}
-
 #btnHome {
     background-image: url(images/02-Common-Cloud/00-Bar\ Menu/Home.png);
-}
-
-#btnMenu {
-    background-image: url(images/02-Common-Cloud/00-Bar\ Menu/Hamb-menu/hamb-menu-deactiv.png);
-}
-
-#btnSecurity {
-    background-image: url(images/02-Common-Cloud/00-Bar\ Menu/security.png);
-}
-
-.bottom-menu-button.hidden {
-    display: none;
 }
