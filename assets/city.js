@@ -1197,6 +1197,14 @@ var TelcoCity = (function () {
       rocket.add(noz);
     }
 
+    // Tag all rocket meshes for raycasting
+    rocket.traverse(function (child) {
+      if (child.isMesh) child.userData._isRocket = true;
+    });
+    g.traverse(function (child) {
+      if (child.isMesh) child.userData._isRocket = true;
+    });
+
     scene.add(rocket);
 
     // Exhaust flame (cone pointing down, hidden until launch)
@@ -1557,6 +1565,23 @@ var TelcoCity = (function () {
       return;
     }
     raycaster.setFromCamera(mouse, camera);
+
+    // Check rocket hover
+    var rocketMeshes = [];
+    scene.traverse(function (obj) {
+      if (obj.isMesh && obj.userData._isRocket) rocketMeshes.push(obj);
+    });
+    var rocketHits = raycaster.intersectObjects(rocketMeshes, false);
+    if (rocketHits.length) {
+      if (hoveredDistrict) {
+        hlDistrict(hoveredDistrict, false);
+        hoveredDistrict = null;
+      }
+      renderer.domElement.style.cursor = "pointer";
+      return;
+    }
+
+    // Check district hover
     var meshes = [];
     Object.keys(districts).forEach(function (k) {
       districts[k].buildings.forEach(function (b) {
@@ -1595,9 +1620,34 @@ var TelcoCity = (function () {
 
   function onClickHandler() {
     if (_dragMoved) return;
+
+    // Check if rocket was clicked
+    raycaster.setFromCamera(mouse, camera);
+    var rocketMeshes = [];
+    scene.traverse(function (obj) {
+      if (obj.isMesh && obj.userData._isRocket) rocketMeshes.push(obj);
+    });
+    var rocketHits = raycaster.intersectObjects(rocketMeshes, false);
+    if (rocketHits.length) {
+      triggerRocketLaunch();
+      return;
+    }
+
     if (hoveredDistrict && !selectedDistrict && onDistrictClick) {
       zoomToDistrict(hoveredDistrict);
       onDistrictClick(hoveredDistrict);
+    }
+  }
+
+  function triggerRocketLaunch() {
+    for (var i = 0; i < traffic.length; i++) {
+      var v = traffic[i];
+      if (v.type === "rocket" && v.state === "pad") {
+        v.state = "countdown";
+        v.timer = v.COUNTDOWN;
+        v.launchSpeed = 0;
+        break;
+      }
     }
   }
 
