@@ -73,8 +73,8 @@ var TelcoCity = (function () {
     onDistrictClick = clickCb;
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x060a16);
-    scene.fog = new THREE.FogExp2(0x060a16, 0.005);
+    scene.background = new THREE.Color(0x0a0f1e);
+    scene.fog = new THREE.FogExp2(0x0a0f1e, 0.004);
 
     camera = new THREE.PerspectiveCamera(
       45,
@@ -131,16 +131,16 @@ var TelcoCity = (function () {
     // Ground
     var gGeo = new THREE.PlaneGeometry(300, 200);
     var gMat = new THREE.MeshStandardMaterial({
-      color: 0x0b0f1a,
-      roughness: 0.95,
-      metalness: 0.05,
+      color: 0x111828,
+      roughness: 0.9,
+      metalness: 0.1,
     });
     var ground = new THREE.Mesh(gGeo, gMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.1;
     scene.add(ground);
 
-    var grid = new THREE.GridHelper(300, 120, 0x141c30, 0x0f1524);
+    var grid = new THREE.GridHelper(300, 120, 0x1e2840, 0x151d30);
     grid.position.y = 0.01;
     scene.add(grid);
 
@@ -614,7 +614,7 @@ var TelcoCity = (function () {
   }
 
   function addLighting() {
-    scene.add(new THREE.AmbientLight(0x0e1133, 0.6));
+    scene.add(new THREE.AmbientLight(0x1a2244, 0.8));
 
     var moon = new THREE.DirectionalLight(0x2233aa, 0.35);
     moon.position.set(-40, 60, 30);
@@ -1380,14 +1380,17 @@ var TelcoCity = (function () {
       el.className = "city-label";
       el.textContent = names[k];
       el.style.cssText =
-        "position:absolute;color:" +
-        colors[k] +
-        ";font-family:system-ui,sans-serif;font-size:14px;font-weight:700;" +
-        "text-transform:uppercase;letter-spacing:3px;text-shadow:0 0 20px " +
-        colors[k] +
-        ",0 0 40px " +
-        colors[k] +
-        "40;transition:opacity 0.4s;white-space:nowrap;";
+        "position:absolute;color:#fff;" +
+        "font-family:system-ui,sans-serif;font-size:20px;font-weight:800;" +
+        "text-transform:uppercase;letter-spacing:4px;" +
+        "text-shadow:0 0 12px " + colors[k] +
+        ",0 0 30px " + colors[k] +
+        ",0 2px 8px rgba(0,0,0,0.8);" +
+        "background:linear-gradient(180deg," + colors[k] + "30," + colors[k] + "10);" +
+        "padding:6px 16px;border-radius:4px;" +
+        "border:1px solid " + colors[k] + "50;" +
+        "backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);" +
+        "transition:opacity 0.4s;white-space:nowrap;";
       labelContainer.appendChild(el);
       labelEls[k] = el;
     });
