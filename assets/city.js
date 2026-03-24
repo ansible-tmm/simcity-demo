@@ -20,11 +20,11 @@ var TelcoCity = (function () {
 
   var DISTRICT_CAMS = {
     crawl: {
-      pos: new THREE.Vector3(-22, 28, 38),
+      pos: new THREE.Vector3(-22, 14, 32),
       look: new THREE.Vector3(-28, 0, -2),
     },
     walk: {
-      pos: new THREE.Vector3(5, 28, 38),
+      pos: new THREE.Vector3(5, 20, 35),
       look: new THREE.Vector3(0, 0, -2),
     },
     run: {
@@ -184,28 +184,37 @@ var TelcoCity = (function () {
 
   var DISTRICT_STYLES = {
     crawl: {
-      density: 0.75,
-      heightMult: 1.0,
-      minW: 1.2, maxW: 2.8,
+      density: 0.8,
+      heightMult: 0.15,
+      baseHeight: 0.8,
+      minW: 1.6, maxW: 3.0,
       winStyle: "grid",
       rooftop: "antenna",
-      glassChance: 0.2,
+      glassChance: 0.05,
+      towerScale: 0.3,
+      cellTowerScale: 0.5,
     },
     walk: {
       density: 0.78,
-      heightMult: 1.15,
-      minW: 0.9, maxW: 2.2,
+      heightMult: 0.5,
+      baseHeight: 1.2,
+      minW: 1.0, maxW: 2.4,
       winStyle: "horizontal",
       rooftop: "dome",
-      glassChance: 0.35,
+      glassChance: 0.25,
+      towerScale: 0.6,
+      cellTowerScale: 0.75,
     },
     run: {
-      density: 0.7,
-      heightMult: 0.95,
-      minW: 1.4, maxW: 3.2,
+      density: 0.75,
+      heightMult: 1.0,
+      baseHeight: 1.5,
+      minW: 1.2, maxW: 2.8,
       winStyle: "scattered",
       rooftop: "helipad",
-      glassChance: 0.15,
+      glassChance: 0.2,
+      towerScale: 1.0,
+      cellTowerScale: 1.0,
     },
   };
 
@@ -237,7 +246,7 @@ var TelcoCity = (function () {
 
         var dist = Math.sqrt(x * x + z * z);
         var maxH = (dist < 4 ? 20 : dist < 7 ? 14 : 8) * style.heightMult;
-        var h = 1.5 + rand() * maxH;
+        var h = (style.baseHeight || 1.5) + rand() * maxH;
         var w = style.minW + rand() * (style.maxW - style.minW);
         var d = style.minW + rand() * (style.maxW - style.minW);
         var isGlass = rand() < style.glassChance;
@@ -249,14 +258,16 @@ var TelcoCity = (function () {
       }
     }
 
-    // Signature tower (offset from road center)
-    var tower = makeTower(-5, -2, color, accent);
+    // Signature tower (offset from road center), scaled per district
+    var ts = style.towerScale || 1.0;
+    var tower = makeTower(-5, -2, color, accent, ts);
     tower.userData.districtId = id;
     group.add(tower);
     bList.push(tower);
 
-    // Cell tower (telco theme)
-    var cellTower = makeCellTower(6, -6, color, accent);
+    // Cell tower (telco theme), scaled per district
+    var cts = style.cellTowerScale || 1.0;
+    var cellTower = makeCellTower(6, -6, color, accent, cts);
     cellTower.userData.districtId = id;
     group.add(cellTower);
     bList.push(cellTower);
@@ -313,9 +324,9 @@ var TelcoCity = (function () {
       geo = new THREE.BoxGeometry(w, h, d);
       mat = new THREE.MeshStandardMaterial({
         color: shade,
-        roughness: 0.65,
-        metalness: 0.35,
-        emissive: color.clone().multiplyScalar(0.03),
+        roughness: 0.55,
+        metalness: 0.4,
+        emissive: color.clone().multiplyScalar(0.06),
         emissiveIntensity: 1,
       });
       mesh = new THREE.Mesh(geo, mat);
@@ -347,12 +358,12 @@ var TelcoCity = (function () {
     var winW = (w * 0.7) / cols;
     var winH = 0.35;
     for (var r = 0; r < rows; r++) {
-      if (rand() > 0.7) continue;
+      if (rand() > 0.92) continue;
       var y = 1 + r * 1.5;
       if (y > h - 0.5) break;
-      var op = 0.1 + rand() * 0.55;
+      var op = 0.25 + rand() * 0.55;
       var warmth = rand();
-      var wColor = warmth > 0.6
+      var wColor = warmth > 0.5
         ? new THREE.Color(0xffeebb).lerp(accent, 0.3)
         : accent;
       var wMat = new THREE.MeshBasicMaterial({
@@ -361,7 +372,7 @@ var TelcoCity = (function () {
         opacity: op,
       });
       for (var c = 0; c < cols; c++) {
-        if (rand() > 0.75) continue;
+        if (rand() > 0.9) continue;
         var xOff = -w * 0.35 + c * (w * 0.7 / cols) + winW / 2;
         var wg = new THREE.PlaneGeometry(winW * 0.8, winH);
         var wm = new THREE.Mesh(wg, wMat);
@@ -372,7 +383,7 @@ var TelcoCity = (function () {
       // Sides
       var sCols = Math.max(2, Math.floor(d / 0.6));
       for (var sc = 0; sc < sCols; sc++) {
-        if (rand() > 0.7) continue;
+        if (rand() > 0.9) continue;
         var zOff = -d * 0.35 + sc * (d * 0.7 / sCols) + (d * 0.7 / sCols) / 2;
         var sg = new THREE.PlaneGeometry((d * 0.7 / sCols) * 0.8, winH);
         var sm = new THREE.Mesh(sg, wMat);
@@ -386,12 +397,12 @@ var TelcoCity = (function () {
 
   function addWindowsHorizontal(parent, w, d, h, rows, accent) {
     for (var r = 0; r < rows; r++) {
-      if (rand() > 0.6) continue;
+      if (rand() > 0.9) continue;
       var y = 0.8 + r * 1.5;
       if (y > h - 0.5) break;
-      var op = 0.1 + rand() * 0.5;
+      var op = 0.2 + rand() * 0.55;
       var warmth = rand();
-      var wColor = warmth > 0.5
+      var wColor = warmth > 0.4
         ? new THREE.Color(0xccddff).lerp(accent, 0.4)
         : accent;
       var wMat = new THREE.MeshBasicMaterial({
@@ -414,12 +425,12 @@ var TelcoCity = (function () {
   }
 
   function addWindowsScattered(parent, w, d, h, rows, accent) {
-    var count = Math.floor(3 + rand() * 8);
+    var count = Math.floor(6 + rand() * 12);
     for (var i = 0; i < count; i++) {
       var y = 0.8 + rand() * (h - 1.5);
-      var op = 0.15 + rand() * 0.6;
+      var op = 0.3 + rand() * 0.55;
       var warmth = rand();
-      var wColor = warmth > 0.4
+      var wColor = warmth > 0.35
         ? new THREE.Color(0xffeeaa).lerp(accent, 0.2)
         : accent;
       var wMat = new THREE.MeshBasicMaterial({
@@ -500,10 +511,12 @@ var TelcoCity = (function () {
     }
   }
 
-  function makeTower(x, z, color, accent) {
+  function makeTower(x, z, color, accent, scale) {
+    scale = scale || 1.0;
     var g = new THREE.Group();
-    var h = 24;
-    var bGeo = new THREE.CylinderGeometry(1.0, 1.6, h, 6);
+    var h = 24 * scale;
+    var r1 = 1.0 * scale, r2 = 1.6 * scale;
+    var bGeo = new THREE.CylinderGeometry(r1, r2, h, 6);
     var bMat = new THREE.MeshStandardMaterial({
       color: color.clone().multiplyScalar(0.35),
       roughness: 0.3,
@@ -515,32 +528,32 @@ var TelcoCity = (function () {
     base.castShadow = true;
     g.add(base);
 
-    var sGeo = new THREE.ConeGeometry(0.18, 5, 6);
+    var sGeo = new THREE.ConeGeometry(0.18 * scale, 5 * scale, 6);
     var sMat = new THREE.MeshBasicMaterial({ color: accent });
     var spire = new THREE.Mesh(sGeo, sMat);
-    spire.position.set(x, h + 2.5, z);
+    spire.position.set(x, h + 2.5 * scale, z);
     g.add(spire);
 
-    var lGeo = new THREE.SphereGeometry(0.25, 8, 8);
+    var lGeo = new THREE.SphereGeometry(0.25 * scale, 8, 8);
     var lMat = new THREE.MeshBasicMaterial({
       color: accent,
       transparent: true,
       opacity: 0.9,
     });
     var beacon = new THREE.Mesh(lGeo, lMat);
-    beacon.position.set(x, h + 5.3, z);
+    beacon.position.set(x, h + (5.3 * scale), z);
     beacon.userData._isBeacon = true;
     g.add(beacon);
 
     for (var ri = 0; ri < 3; ri++) {
-      var rGeo = new THREE.TorusGeometry(2 + ri * 1.2, 0.06, 8, 32);
+      var rGeo = new THREE.TorusGeometry((2 + ri * 1.2) * scale, 0.06, 8, 32);
       var rMat = new THREE.MeshBasicMaterial({
         color: accent,
         transparent: true,
         opacity: 0.25 - ri * 0.06,
       });
       var ring = new THREE.Mesh(rGeo, rMat);
-      ring.position.set(x, h * 0.6 + ri * 2, z);
+      ring.position.set(x, h * 0.6 + ri * 2 * scale, z);
       ring.rotation.x = Math.PI / 2;
       ring.userData._isRing = true;
       ring.userData._ringIdx = ri;
@@ -549,15 +562,18 @@ var TelcoCity = (function () {
     return g;
   }
 
-  function makeCellTower(x, z, color, accent) {
+  function makeCellTower(x, z, color, accent, scale) {
+    scale = scale || 1.0;
     var g = new THREE.Group();
-    var h = 16;
-    // Pole
-    var pGeo = new THREE.CylinderGeometry(0.12, 0.15, h, 6);
+    var h = 16 * scale;
+    // Pole — bright enough to see against dark ground
+    var pGeo = new THREE.CylinderGeometry(0.12 * scale, 0.15 * scale, h, 6);
     var pMat = new THREE.MeshStandardMaterial({
-      color: 0x3a3a4a,
-      roughness: 0.6,
-      metalness: 0.5,
+      color: 0x667788,
+      emissive: new THREE.Color(0x334455),
+      emissiveIntensity: 0.5,
+      roughness: 0.4,
+      metalness: 0.6,
     });
     var pole = new THREE.Mesh(pGeo, pMat);
     pole.position.set(x, h / 2, z);
@@ -565,18 +581,18 @@ var TelcoCity = (function () {
 
     // Antennas
     for (var a = 0; a < 3; a++) {
-      var aGeo = new THREE.BoxGeometry(0.08, 2, 0.5);
+      var aGeo = new THREE.BoxGeometry(0.08 * scale, 2 * scale, 0.5 * scale);
       var aMat = new THREE.MeshStandardMaterial({
-        color: 0x4a4a5a,
+        color: 0x6a7a8a,
         emissive: accent,
-        emissiveIntensity: 0.15,
+        emissiveIntensity: 0.3,
       });
       var antenna = new THREE.Mesh(aGeo, aMat);
       var angle = (a / 3) * Math.PI * 2;
       antenna.position.set(
-        x + Math.cos(angle) * 0.5,
-        h - 0.5,
-        z + Math.sin(angle) * 0.5
+        x + Math.cos(angle) * 0.5 * scale,
+        h - 0.5 * scale,
+        z + Math.sin(angle) * 0.5 * scale
       );
       antenna.rotation.y = angle;
       g.add(antenna);
@@ -584,14 +600,14 @@ var TelcoCity = (function () {
 
     // Signal rings
     for (var sr = 0; sr < 2; sr++) {
-      var srGeo = new THREE.TorusGeometry(1.5 + sr * 1.5, 0.04, 8, 24);
+      var srGeo = new THREE.TorusGeometry((1.5 + sr * 1.5) * scale, 0.04, 8, 24);
       var srMat = new THREE.MeshBasicMaterial({
         color: accent,
         transparent: true,
         opacity: 0.2 - sr * 0.05,
       });
       var sRing = new THREE.Mesh(srGeo, srMat);
-      sRing.position.set(x, h + 0.5, z);
+      sRing.position.set(x, h + 0.5 * scale, z);
       sRing.rotation.x = Math.PI / 2;
       sRing.userData._isSignal = true;
       sRing.userData._signalIdx = sr;
