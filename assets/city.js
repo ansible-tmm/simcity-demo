@@ -216,27 +216,40 @@ var TelcoCity = (function () {
     var bList = [];
     var style = DISTRICT_STYLES[id] || DISTRICT_STYLES.oneFoundation;
 
+    // Road clearance: vertical road runs through local x=0, horizontal road at world z=14
+    var vRoadHalf = 2.8;
+    var hRoadWorldZ = 14;
+    var hRoadHalf = 2.8;
+
     for (var x = -10; x <= 10; x += 3.2) {
       for (var z = -9; z <= 9; z += 3.2) {
         if (rand() > style.density) continue;
+        var ox = (rand() - 0.5) * 0.6;
+        var oz = (rand() - 0.5) * 0.6;
+        var bx = x + ox;
+        var bz = z + oz;
+
+        // Skip if building would land on the vertical road corridor
+        if (Math.abs(bx) < vRoadHalf) continue;
+        // Skip if building would land on the horizontal road (in world coords)
+        if (Math.abs((cz + bz) - hRoadWorldZ) < hRoadHalf) continue;
+
         var dist = Math.sqrt(x * x + z * z);
         var maxH = (dist < 4 ? 20 : dist < 7 ? 14 : 8) * style.heightMult;
         var h = 1.5 + rand() * maxH;
         var w = style.minW + rand() * (style.maxW - style.minW);
         var d = style.minW + rand() * (style.maxW - style.minW);
-        var ox = (rand() - 0.5) * 0.6;
-        var oz = (rand() - 0.5) * 0.6;
         var isGlass = rand() < style.glassChance;
 
-        var b = makeBuilding(x + ox, z + oz, w, h, d, color, accent, style, isGlass);
+        var b = makeBuilding(bx, bz, w, h, d, color, accent, style, isGlass);
         b.userData.districtId = id;
         group.add(b);
         bList.push(b);
       }
     }
 
-    // Signature tower
-    var tower = makeTower(0, 0, color, accent);
+    // Signature tower (offset from road center)
+    var tower = makeTower(-5, -2, color, accent);
     tower.userData.districtId = id;
     group.add(tower);
     bList.push(tower);
@@ -1208,19 +1221,19 @@ var TelcoCity = (function () {
       if (v.type === "train") {
         var c = v.cfg;
         v.mesh.position.x += c.speed * dt;
-        if (v.mesh.position.x > 80) v.mesh.position.x = -80;
+        if (v.mesh.position.x > 65) v.mesh.position.x = -65;
       }
 
       if (v.type === "car") {
         var c = v.cfg;
         if (c.road === "h") {
           v.mesh.position.x += c.speed * dt;
-          if (c.speed > 0 && v.mesh.position.x > 70) v.mesh.position.x = -70;
-          if (c.speed < 0 && v.mesh.position.x < -70) v.mesh.position.x = 70;
+          if (c.speed > 0 && v.mesh.position.x > 62) v.mesh.position.x = -62;
+          if (c.speed < 0 && v.mesh.position.x < -62) v.mesh.position.x = 62;
         } else {
           v.mesh.position.z += c.speed * dt;
-          if (c.speed > 0 && v.mesh.position.z > 20) v.mesh.position.z = -25;
-          if (c.speed < 0 && v.mesh.position.z < -25) v.mesh.position.z = 20;
+          if (c.speed > 0 && v.mesh.position.z > 14) v.mesh.position.z = -22;
+          if (c.speed < 0 && v.mesh.position.z < -22) v.mesh.position.z = 14;
         }
       }
 
