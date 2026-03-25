@@ -44,8 +44,12 @@ var TelcoCity = (function () {
     target: new THREE.Vector3(0, 0, -5),
     enabled: true,
     userControlling: false,
+    returning: false,
     idleTimer: 0,
-    IDLE_RESUME: 5,
+    IDLE_RESUME: 10,
+    HOME_THETA: 0,
+    HOME_PHI: 0.65,
+    HOME_RADIUS: 75,
     MIN_PHI: 0.15,
     MAX_PHI: Math.PI / 2 - 0.05,
     MIN_RADIUS: 25,
@@ -73,8 +77,8 @@ var TelcoCity = (function () {
     onDistrictClick = clickCb;
 
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0f1e);
-    scene.fog = new THREE.FogExp2(0x0a0f1e, 0.004);
+    scene.background = new THREE.Color(0x0f1525);
+    scene.fog = new THREE.FogExp2(0x0f1525, 0.003);
 
     camera = new THREE.PerspectiveCamera(
       45,
@@ -131,16 +135,16 @@ var TelcoCity = (function () {
     // Ground
     var gGeo = new THREE.PlaneGeometry(300, 200);
     var gMat = new THREE.MeshStandardMaterial({
-      color: 0x111828,
-      roughness: 0.9,
-      metalness: 0.1,
+      color: 0x1a2238,
+      roughness: 0.85,
+      metalness: 0.15,
     });
     var ground = new THREE.Mesh(gGeo, gMat);
     ground.rotation.x = -Math.PI / 2;
     ground.position.y = -0.1;
     scene.add(ground);
 
-    var grid = new THREE.GridHelper(300, 120, 0x1e2840, 0x151d30);
+    var grid = new THREE.GridHelper(300, 120, 0x2e3e5e, 0x222e48);
     grid.position.y = 0.01;
     scene.add(grid);
 
@@ -630,9 +634,9 @@ var TelcoCity = (function () {
   }
 
   function addLighting() {
-    scene.add(new THREE.AmbientLight(0x1a2244, 0.8));
+    scene.add(new THREE.AmbientLight(0x2a3466, 1.2));
 
-    var moon = new THREE.DirectionalLight(0x2233aa, 0.35);
+    var moon = new THREE.DirectionalLight(0x3344bb, 0.5);
     moon.position.set(-40, 60, 30);
     scene.add(moon);
 
@@ -707,12 +711,14 @@ var TelcoCity = (function () {
     // Train on the horizontal road
     addTrain({
       z: 14,
-      y: 0.45,
+      y: 3.5,
       speed: 6,
       cars: 5,
       color: 0x4466aa,
       accentColor: 0x88aaff,
     });
+
+    addMonorailTrack(14, 3.5);
 
     // Cars on vertical roads only (horizontal road is for the train)
     addCar({ road: "v", x: -28.35, speed: -7, phase: 10, color: 0x44ff88, headlight: 0xffddaa });
@@ -722,8 +728,105 @@ var TelcoCity = (function () {
     addCar({ road: "v", x: 28.35, speed: -6, phase: 0, color: 0xff6644, headlight: 0xffeecc });
     addCar({ road: "v", x: 27.65, speed: 8, phase: -18, color: 0xffaa22, headlight: 0xffeecc });
 
+    // Light cycles
+    addLightCycles();
+
     // Rocket launch
     addRocketLaunch();
+  }
+
+  var lightCyclePair = null;
+
+  function makeCycleMesh(col) {
+    var g = new THREE.Group();
+    var bodyMat = new THREE.MeshStandardMaterial({
+      color: 0x111122, emissive: col, emissiveIntensity: 0.6,
+      metalness: 0.9, roughness: 0.2,
+    });
+    var body = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.5, 1.4), bodyMat);
+    body.position.y = 0.4;
+    g.add(body);
+    var fair = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.7, 0.3), bodyMat);
+    fair.position.set(0, 0.55, 0.55);
+    g.add(fair);
+    var strip = new THREE.Mesh(
+      new THREE.BoxGeometry(0.1, 0.08, 1.2),
+      new THREE.MeshBasicMaterial({ color: col })
+    );
+    strip.position.set(0, 0.66, 0);
+    g.add(strip);
+    var wheelMat = new THREE.MeshStandardMaterial({
+      color: 0x222233, emissive: col, emissiveIntensity: 0.3,
+    });
+    var fw = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 0.15, 8), wheelMat);
+    fw.rotation.x = Math.PI / 2; fw.position.set(0, 0.25, 0.55);
+    g.add(fw);
+    var rw = fw.clone(); rw.position.set(0, 0.25, -0.55);
+    g.add(rw);
+    var glow = new THREE.PointLight(col.getHex(), 2, 8);
+    glow.position.set(0, 0.3, 0);
+    g.add(glow);
+    return g;
+  }
+
+  function makeTrailGeo(TRAIL_LEN, startX, startZ, color) {
+    var positions = new Float32Array(TRAIL_LEN * 3);
+    for (var i = 0; i < TRAIL_LEN; i++) {
+      positions[i * 3] = startX;
+      positions[i * 3 + 1] = 0.15;
+      positions[i * 3 + 2] = startZ;
+    }
+    var geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+    var mat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.8, linewidth: 2 });
+    var line = new THREE.Line(geo, mat);
+    line.frustumCulled = false;
+    scene.add(line);
+
+    var wallCount = TRAIL_LEN - 1;
+    var wallPos = new Float32Array(wallCount * 18);
+    var wallGeo = new THREE.BufferGeometry();
+    wallGeo.setAttribute("position", new THREE.BufferAttribute(wallPos, 3));
+    var wallMat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.25, side: THREE.DoubleSide });
+    var wallMesh = new THREE.Mesh(wallGeo, wallMat);
+    wallMesh.frustumCulled = false;
+    scene.add(wallMesh);
+
+    return { line: line, wall: wallMesh };
+  }
+
+  function addLightCycles() {
+    var TRAIL_LEN = 200;
+    var LATERAL_OFFSET = 1.8;
+    var startX = -90, startZ = -45;
+
+    var colA = new THREE.Color(0x00ddff);
+    var colB = new THREE.Color(0xff6600);
+
+    var meshA = makeCycleMesh(colA);
+    var meshB = makeCycleMesh(colB);
+    meshA.position.set(startX, 0, startZ - LATERAL_OFFSET / 2);
+    meshB.position.set(startX, 0, startZ + LATERAL_OFFSET / 2);
+    scene.add(meshA);
+    scene.add(meshB);
+
+    var trailA = makeTrailGeo(TRAIL_LEN, startX, startZ - LATERAL_OFFSET / 2, 0x00ddff);
+    var trailB = makeTrailGeo(TRAIL_LEN, startX, startZ + LATERAL_OFFSET / 2, 0xff6600);
+
+    lightCyclePair = {
+      meshA: meshA, meshB: meshB,
+      trailA: trailA, trailB: trailB,
+      TRAIL_LEN: TRAIL_LEN,
+      LATERAL: LATERAL_OFFSET,
+      leaderX: startX, leaderZ: startZ,
+      dirIndex: 0,
+      speed: 20,
+      turnTimer: 1.5,
+      turnInterval: 1.8,
+      bounds: { minX: -120, maxX: 120, minZ: -80, maxZ: -25 },
+    };
+
+    traffic.push({ type: "lightcycle_pair" });
   }
 
   function addAirplane(cfg) {
@@ -782,138 +885,252 @@ var TelcoCity = (function () {
     });
   }
 
+  function addMonorailTrack(z, height) {
+    var trackLen = 160;
+    var pillarSpacing = 12;
+
+    // Elevated rail beam
+    var beamGeo = new THREE.BoxGeometry(trackLen, 0.15, 0.6);
+    var beamMat = new THREE.MeshStandardMaterial({
+      color: 0x4a5a7a,
+      emissive: new THREE.Color(0x2a3a5a),
+      emissiveIntensity: 0.5,
+      metalness: 0.85,
+      roughness: 0.2,
+    });
+    var beam = new THREE.Mesh(beamGeo, beamMat);
+    beam.position.set(0, height - 0.15, z);
+    scene.add(beam);
+
+    // Accent light strips along the beam edges
+    var stripGeo = new THREE.BoxGeometry(trackLen, 0.04, 0.03);
+    var stripMat = new THREE.MeshBasicMaterial({
+      color: 0x66bbff,
+      transparent: true,
+      opacity: 0.7,
+    });
+    var strip1 = new THREE.Mesh(stripGeo, stripMat);
+    strip1.position.set(0, height - 0.08, z + 0.32);
+    scene.add(strip1);
+    var strip2 = strip1.clone();
+    strip2.position.z = z - 0.32;
+    scene.add(strip2);
+
+    // Support pillars
+    var pillarGeo = new THREE.BoxGeometry(0.3, height - 0.15, 0.3);
+    var pillarMat = new THREE.MeshStandardMaterial({
+      color: 0x4a5a7a,
+      emissive: new THREE.Color(0x2a3a5a),
+      emissiveIntensity: 0.4,
+      metalness: 0.8,
+      roughness: 0.25,
+    });
+
+    var roadXPositions = [-28, 0, 28];
+    var roadClearance = 2.5;
+    for (var px = -trackLen / 2 + 4; px <= trackLen / 2 - 4; px += pillarSpacing) {
+      var onRoad = false;
+      for (var ri = 0; ri < roadXPositions.length; ri++) {
+        if (Math.abs(px - roadXPositions[ri]) < roadClearance) { onRoad = true; break; }
+      }
+      if (onRoad) continue;
+
+      var pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(px, (height - 0.15) / 2, z);
+      scene.add(pillar);
+
+      // Small bracket at top
+      var bracketGeo = new THREE.BoxGeometry(0.6, 0.1, 0.8);
+      var bracket = new THREE.Mesh(bracketGeo, beamMat);
+      bracket.position.set(px, height - 0.2, z);
+      scene.add(bracket);
+
+      // Subtle glow ring on pillar
+      var ringGeo = new THREE.BoxGeometry(0.38, 0.06, 0.38);
+      var ringMat = new THREE.MeshBasicMaterial({
+        color: 0x66bbff,
+        transparent: true,
+        opacity: 0.5,
+      });
+      var ring = new THREE.Mesh(ringGeo, ringMat);
+      ring.position.set(px, height * 0.5, z);
+      scene.add(ring);
+    }
+  }
+
   function addTrain(cfg) {
     var g = new THREE.Group();
     var carWidth = 2.2;
     var carGap = 0.3;
 
-    // ── Futuristic engine car ──
+    // ── Bullet train engine (Shinkansen-style) ──
     var engGroup = new THREE.Group();
-    engGroup.position.set(0, 0, 0);
-
-    // Main engine body — sleek tapered shape
-    var engBodyGeo = new THREE.BoxGeometry(3.0, 0.8, 1.0);
     var engMat = new THREE.MeshStandardMaterial({
-      color: 0x1a2040,
+      color: 0xe8eef6,
       emissive: new THREE.Color(cfg.accentColor),
-      emissiveIntensity: 0.6,
-      roughness: 0.15,
-      metalness: 0.85,
+      emissiveIntensity: 0.15,
+      roughness: 0.08,
+      metalness: 0.95,
     });
-    var engBody = new THREE.Mesh(engBodyGeo, engMat);
-    engBody.position.y = 0.4;
-    engGroup.add(engBody);
-
-    // Aerodynamic nose cone (wedge front)
-    var noseShape = new THREE.Shape();
-    noseShape.moveTo(0, 0);
-    noseShape.lineTo(1.2, 0);
-    noseShape.lineTo(0, 0.5);
-    var noseGeo = new THREE.ExtrudeGeometry(noseShape, { depth: 0.9, bevelEnabled: false });
     var noseMat = new THREE.MeshStandardMaterial({
-      color: 0x222850,
+      color: 0xd0d8e8,
       emissive: new THREE.Color(cfg.accentColor),
-      emissiveIntensity: 0.4,
-      roughness: 0.1,
-      metalness: 0.9,
+      emissiveIntensity: 0.2,
+      roughness: 0.05,
+      metalness: 0.95,
     });
-    var nose = new THREE.Mesh(noseGeo, noseMat);
-    nose.position.set(1.5, 0.05, -0.45);
-    engGroup.add(nose);
 
-    // Windshield — glowing strip across the front
-    var wsGeo = new THREE.PlaneGeometry(0.6, 0.2);
-    var wsMat = new THREE.MeshBasicMaterial({
-      color: 0x66ddff,
-      transparent: true,
-      opacity: 0.9,
-    });
-    var ws = new THREE.Mesh(wsGeo, wsMat);
-    ws.position.set(1.3, 0.65, 0);
-    ws.rotation.y = Math.PI / 2;
-    engGroup.add(ws);
+    // Main body — smooth rounded capsule
+    var bodyGeo = new THREE.BoxGeometry(3.2, 0.85, 1.0);
+    var body = new THREE.Mesh(bodyGeo, engMat);
+    body.position.y = 0.42;
+    engGroup.add(body);
 
-    // Roof accent stripe (glowing line along top)
-    var roofGeo = new THREE.BoxGeometry(3.0, 0.04, 0.15);
-    var roofMat = new THREE.MeshBasicMaterial({
-      color: cfg.accentColor,
-      transparent: true,
-      opacity: 0.7,
-    });
-    var roof = new THREE.Mesh(roofGeo, roofMat);
-    roof.position.set(0, 0.82, 0);
+    // Rounded roof
+    var roofGeo = new THREE.CylinderGeometry(0.5, 0.5, 3.2, 8, 1, false, 0, Math.PI);
+    var roof = new THREE.Mesh(roofGeo, engMat);
+    roof.rotation.z = Math.PI / 2;
+    roof.position.set(0, 0.84, 0);
     engGroup.add(roof);
 
-    // Side LED strips
-    var sideLedGeo = new THREE.BoxGeometry(2.8, 0.04, 0.02);
-    var sideLedMat = new THREE.MeshBasicMaterial({
+    // Long tapered nose cone — the signature bullet shape
+    var noseLen = 2.2;
+    var noseGeo = new THREE.ConeGeometry(0.55, noseLen, 8);
+    var noseCone = new THREE.Mesh(noseGeo, noseMat);
+    noseCone.rotation.z = -Math.PI / 2;
+    noseCone.position.set(1.6 + noseLen / 2, 0.5, 0);
+    engGroup.add(noseCone);
+
+    // Under-nose fairing (smooth belly transition)
+    var fairGeo = new THREE.BoxGeometry(1.8, 0.3, 0.85);
+    var fair = new THREE.Mesh(fairGeo, noseMat);
+    fair.position.set(2.0, 0.2, 0);
+    engGroup.add(fair);
+
+    // Windshield — wrap-around visor
+    var wsGeo = new THREE.BoxGeometry(0.5, 0.35, 1.02);
+    var wsMat = new THREE.MeshStandardMaterial({
+      color: 0x112244,
+      emissive: new THREE.Color(0x2266aa),
+      emissiveIntensity: 0.5,
+      roughness: 0.0,
+      metalness: 1.0,
+      transparent: true,
+      opacity: 0.85,
+    });
+    var ws = new THREE.Mesh(wsGeo, wsMat);
+    ws.position.set(1.4, 0.65, 0);
+    engGroup.add(ws);
+
+    // Accent stripe along the side (blue line like Shinkansen)
+    var stripeGeo = new THREE.BoxGeometry(5.0, 0.06, 0.02);
+    var stripeMat = new THREE.MeshBasicMaterial({
+      color: cfg.accentColor,
+      transparent: true,
+      opacity: 0.85,
+    });
+    var stripe1 = new THREE.Mesh(stripeGeo, stripeMat);
+    stripe1.position.set(0.2, 0.38, 0.52);
+    engGroup.add(stripe1);
+    var stripe2 = stripe1.clone();
+    stripe2.position.z = -0.52;
+    engGroup.add(stripe2);
+
+    // Thin pinstripe above main stripe
+    var pinGeo = new THREE.BoxGeometry(5.0, 0.02, 0.02);
+    var pin1 = new THREE.Mesh(pinGeo, stripeMat);
+    pin1.position.set(0.2, 0.55, 0.52);
+    engGroup.add(pin1);
+    var pin2 = pin1.clone();
+    pin2.position.z = -0.52;
+    engGroup.add(pin2);
+
+    // Headlights — sleek narrow strips
+    var hlGeo = new THREE.BoxGeometry(0.05, 0.06, 0.35);
+    var hlMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    var hl1 = new THREE.Mesh(hlGeo, hlMat);
+    hl1.position.set(2.6, 0.4, 0);
+    engGroup.add(hl1);
+
+    // Headlight glow
+    var hlGlow = new THREE.PointLight(0xeeeeff, 3, 10, 2);
+    hlGlow.position.set(2.8, 0.4, 0);
+    engGroup.add(hlGlow);
+
+    // Tail light strip
+    var tlGeo = new THREE.BoxGeometry(0.04, 0.1, 0.7);
+    var tlMat = new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.8 });
+    var tl = new THREE.Mesh(tlGeo, tlMat);
+    tl.position.set(-1.62, 0.4, 0);
+    engGroup.add(tl);
+
+    // Roof line accent
+    var roofLineGeo = new THREE.BoxGeometry(3.2, 0.03, 0.12);
+    var roofLineMat = new THREE.MeshBasicMaterial({
       color: cfg.accentColor,
       transparent: true,
       opacity: 0.6,
     });
-    var sLed1 = new THREE.Mesh(sideLedGeo, sideLedMat);
-    sLed1.position.set(0, 0.25, 0.52);
-    engGroup.add(sLed1);
-    var sLed2 = sLed1.clone();
-    sLed2.position.z = -0.52;
-    engGroup.add(sLed2);
-
-    // Headlights (dual bright spots)
-    var hlGeo = new THREE.SphereGeometry(0.1, 6, 6);
-    var hlMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
-    var hl1 = new THREE.Mesh(hlGeo, hlMat);
-    hl1.position.set(2.6, 0.35, 0.25);
-    engGroup.add(hl1);
-    var hl2 = new THREE.Mesh(hlGeo, hlMat);
-    hl2.position.set(2.6, 0.35, -0.25);
-    engGroup.add(hl2);
-
-    // Headlight glow
-    var hlGlow = new THREE.PointLight(0xaaddff, 2, 8, 2);
-    hlGlow.position.set(2.8, 0.35, 0);
-    engGroup.add(hlGlow);
-
-    // Tail light
-    var tlGeo = new THREE.BoxGeometry(0.05, 0.15, 0.6);
-    var tlMat = new THREE.MeshBasicMaterial({ color: 0xff2200, transparent: true, opacity: 0.8 });
-    var tl = new THREE.Mesh(tlGeo, tlMat);
-    tl.position.set(-1.52, 0.35, 0);
-    engGroup.add(tl);
+    var roofLine = new THREE.Mesh(roofLineGeo, roofLineMat);
+    roofLine.position.set(0, 1.0, 0);
+    engGroup.add(roofLine);
 
     g.add(engGroup);
 
-    // ── Passenger / cargo cars ──
-    var carColors = [0x1e2850, 0x252060, 0x1a3050, 0x2a2055, 0x1e2848];
-    var carAccents = [0x4488ff, 0x8855ff, 0x44ffaa, 0xff8844, 0x55aaff];
+    // ── Passenger cars (matching bullet train style) ──
+    var carAccents = [0x4488ff, 0x5599ff, 0x4488ff, 0x5599ff, 0x4488ff];
+    var passengerMat = new THREE.MeshStandardMaterial({
+      color: 0xe0e8f0,
+      emissive: new THREE.Color(cfg.accentColor),
+      emissiveIntensity: 0.1,
+      roughness: 0.1,
+      metalness: 0.9,
+    });
     for (var i = 1; i < cfg.cars; i++) {
       var cGroup = new THREE.Group();
       var cx = -i * (carWidth + carGap) - 1.0;
 
-      var cGeo = new THREE.BoxGeometry(carWidth, 0.65, 0.9);
-      var cMat = new THREE.MeshStandardMaterial({
-        color: carColors[i % carColors.length],
-        emissive: new THREE.Color(carAccents[i % carAccents.length]),
-        emissiveIntensity: 0.35,
-        roughness: 0.2,
-        metalness: 0.7,
-      });
-      var carBody = new THREE.Mesh(cGeo, cMat);
-      carBody.position.set(cx, 0.32, 0);
+      var cGeo = new THREE.BoxGeometry(carWidth, 0.7, 0.95);
+      var carBody = new THREE.Mesh(cGeo, passengerMat);
+      carBody.position.set(cx, 0.35, 0);
       cGroup.add(carBody);
 
-      // Car window strip
-      var cwGeo = new THREE.BoxGeometry(carWidth * 0.8, 0.08, 0.02);
-      var cwMat = new THREE.MeshBasicMaterial({
-        color: carAccents[i % carAccents.length],
-        transparent: true,
-        opacity: 0.4,
+      // Rounded roof per car
+      var cRoofGeo = new THREE.CylinderGeometry(0.47, 0.47, carWidth, 8, 1, false, 0, Math.PI);
+      var cRoof = new THREE.Mesh(cRoofGeo, passengerMat);
+      cRoof.rotation.z = Math.PI / 2;
+      cRoof.position.set(cx, 0.7, 0);
+      cGroup.add(cRoof);
+
+      // Window strip (dark tinted glass band)
+      var cwGeo = new THREE.BoxGeometry(carWidth * 0.85, 0.18, 0.02);
+      var cwMat = new THREE.MeshStandardMaterial({
+        color: 0x112244,
+        emissive: new THREE.Color(0x2266aa),
+        emissiveIntensity: 0.3,
+        roughness: 0.0,
+        metalness: 1.0,
       });
       var cw1 = new THREE.Mesh(cwGeo, cwMat);
-      cw1.position.set(cx, 0.48, 0.47);
+      cw1.position.set(cx, 0.52, 0.49);
       cGroup.add(cw1);
       var cw2 = cw1.clone();
-      cw2.position.z = -0.47;
+      cw2.position.z = -0.49;
       cGroup.add(cw2);
+
+      // Accent stripe
+      var csGeo = new THREE.BoxGeometry(carWidth, 0.05, 0.02);
+      var csMat = new THREE.MeshBasicMaterial({
+        color: cfg.accentColor,
+        transparent: true,
+        opacity: 0.8,
+      });
+      var cs1 = new THREE.Mesh(csGeo, csMat);
+      cs1.position.set(cx, 0.38, 0.49);
+      cGroup.add(cs1);
+      var cs2 = cs1.clone();
+      cs2.position.z = -0.49;
+      cGroup.add(cs2);
 
       g.add(cGroup);
     }
@@ -1451,6 +1668,113 @@ var TelcoCity = (function () {
         }
         v.smoke.geometry.attributes.position.needsUpdate = true;
       }
+
+      if (v.type === "lightcycle_pair" && lightCyclePair) {
+        var lc = lightCyclePair;
+
+        // Direction table: dirIndex 0=+Z, 1=+X, 2=-Z, 3=-X
+        var DIR_DX = [0, 1, 0, -1];
+        var DIR_DZ = [1, 0, -1, 0];
+        var DIR_ANGLE = [0, Math.PI / 2, Math.PI, -Math.PI / 2];
+
+        // Turn logic: only left (+1) or right (-1), never 180
+        lc.turnTimer -= dt;
+        if (lc.turnTimer <= 0) {
+          lc.turnTimer = lc.turnInterval + (Math.random() - 0.5) * 0.6;
+          if (Math.random() < 0.5) {
+            lc.dirIndex = (lc.dirIndex + 1) % 4;
+          } else {
+            lc.dirIndex = (lc.dirIndex + 3) % 4;
+          }
+        }
+
+        // Move leader
+        var dx = DIR_DX[lc.dirIndex];
+        var dz = DIR_DZ[lc.dirIndex];
+        lc.leaderX += dx * lc.speed * dt;
+        lc.leaderZ += dz * lc.speed * dt;
+
+        // Force 90-degree turn at boundaries — always turn left or right, never 180
+        var b = lc.bounds;
+        var margin = 8;
+        var bounced = false;
+        if (lc.leaderX < b.minX + margin && dx < 0) {
+          lc.dirIndex = (Math.random() < 0.5) ? (lc.dirIndex + 1) % 4 : (lc.dirIndex + 3) % 4;
+          lc.leaderX = b.minX + margin + 1;
+          bounced = true;
+        } else if (lc.leaderX > b.maxX - margin && dx > 0) {
+          lc.dirIndex = (Math.random() < 0.5) ? (lc.dirIndex + 1) % 4 : (lc.dirIndex + 3) % 4;
+          lc.leaderX = b.maxX - margin - 1;
+          bounced = true;
+        }
+        if (!bounced) {
+          if (lc.leaderZ < b.minZ + margin && dz < 0) {
+            lc.dirIndex = (Math.random() < 0.5) ? (lc.dirIndex + 1) % 4 : (lc.dirIndex + 3) % 4;
+            lc.leaderZ = b.minZ + margin + 1;
+            bounced = true;
+          } else if (lc.leaderZ > b.maxZ - margin && dz > 0) {
+            lc.dirIndex = (Math.random() < 0.5) ? (lc.dirIndex + 1) % 4 : (lc.dirIndex + 3) % 4;
+            lc.leaderZ = b.maxZ - margin - 1;
+            bounced = true;
+          }
+        }
+        if (bounced) lc.turnTimer = lc.turnInterval;
+
+        var heading = DIR_ANGLE[lc.dirIndex];
+
+        // Perpendicular offset for side-by-side riding
+        var perpX = -Math.cos(heading);
+        var perpZ = Math.sin(heading);
+        var half = lc.LATERAL / 2;
+
+        var posAx = lc.leaderX + perpX * (-half);
+        var posAz = lc.leaderZ + perpZ * (-half);
+        var posBx = lc.leaderX + perpX * half;
+        var posBz = lc.leaderZ + perpZ * half;
+
+        lc.meshA.position.set(posAx, 0, posAz);
+        lc.meshA.rotation.y = heading;
+        lc.meshB.position.set(posBx, 0, posBz);
+        lc.meshB.rotation.y = heading;
+
+        // Update trails — always on
+        var pairs = [
+          { trail: lc.trailA, px: posAx, pz: posAz },
+          { trail: lc.trailB, px: posBx, pz: posBz },
+        ];
+        for (var pi = 0; pi < 2; pi++) {
+          var tr = pairs[pi].trail;
+          var tp = tr.line.geometry.attributes.position.array;
+          for (var ti = lc.TRAIL_LEN - 1; ti > 0; ti--) {
+            tp[ti * 3] = tp[(ti - 1) * 3];
+            tp[ti * 3 + 1] = tp[(ti - 1) * 3 + 1];
+            tp[ti * 3 + 2] = tp[(ti - 1) * 3 + 2];
+          }
+          tp[0] = pairs[pi].px;
+          tp[1] = 0.15;
+          tp[2] = pairs[pi].pz;
+          tr.line.geometry.attributes.position.needsUpdate = true;
+
+          // Wall ribbons
+          var wp = tr.wall.geometry.attributes.position.array;
+          var wallH = 1.2;
+          var maxW = Math.min(lc.TRAIL_LEN - 1, 199);
+          for (var wi = 0; wi < maxW; wi++) {
+            var x0 = tp[wi * 3], z0 = tp[wi * 3 + 2];
+            var x1 = tp[(wi + 1) * 3], z1 = tp[(wi + 1) * 3 + 2];
+            var fade = 1 - wi / maxW;
+            var h = wallH * fade;
+            var bi = wi * 18;
+            wp[bi] = x0; wp[bi+1] = 0.01; wp[bi+2] = z0;
+            wp[bi+3] = x1; wp[bi+4] = 0.01; wp[bi+5] = z1;
+            wp[bi+6] = x0; wp[bi+7] = h; wp[bi+8] = z0;
+            wp[bi+9] = x1; wp[bi+10] = 0.01; wp[bi+11] = z1;
+            wp[bi+12] = x1; wp[bi+13] = h; wp[bi+14] = z1;
+            wp[bi+15] = x0; wp[bi+16] = h; wp[bi+17] = z0;
+          }
+          tr.wall.geometry.attributes.position.needsUpdate = true;
+        }
+      }
     }
   }
 
@@ -1510,6 +1834,22 @@ var TelcoCity = (function () {
       labelContainer.appendChild(el);
       labelEls[k] = el;
     });
+
+  }
+
+  function resetToHome() {
+    if (selectedDistrict) return;
+    orbit.userControlling = false;
+    orbit.returning = true;
+    orbit.dragging = false;
+  }
+
+  function updateCompassRotation() {
+    var el = document.getElementById("compass-btn");
+    if (!el) return;
+    var deg = -(orbit.theta * 180 / Math.PI);
+    var svg = el.querySelector("svg");
+    if (svg) svg.style.transform = "rotate(" + deg + "deg)";
   }
 
   function updateLabels() {
@@ -1532,6 +1872,7 @@ var TelcoCity = (function () {
   function onPointerDown(e) {
     if (e.button !== 0) return;
     orbit.dragging = true;
+    orbit.returning = false;
     orbit.startX = e.clientX;
     orbit.startY = e.clientY;
     _dragMoved = false;
@@ -1567,6 +1908,7 @@ var TelcoCity = (function () {
   function onWheel(e) {
     e.preventDefault();
     if (!orbit.enabled) return;
+    orbit.returning = false;
     orbit.radius = Math.max(
       orbit.MIN_RADIUS,
       Math.min(orbit.MAX_RADIUS, orbit.radius + e.deltaY * 0.08)
@@ -1660,7 +2002,7 @@ var TelcoCity = (function () {
       var v = traffic[i];
       if (v.type === "rocket" && v.state === "pad") {
         v.state = "countdown";
-        v.timer = v.COUNTDOWN;
+        v.timer = 0.8;
         v.launchSpeed = 0;
         break;
       }
@@ -1710,7 +2052,6 @@ var TelcoCity = (function () {
     var t = clock.getElapsedTime();
 
     if (orbit.userControlling) {
-      // User is actively controlling — drive camera directly from orbit angles
       orbit.idleTimer += dt;
       camera.position.copy(orbitToPosition());
       camera.lookAt(orbit.target);
@@ -1718,18 +2059,40 @@ var TelcoCity = (function () {
       targetCamPos.copy(camera.position);
       targetCamLook.copy(orbit.target);
 
-      // After idle timeout, hand back to auto-rotation
       if (orbit.idleTimer > orbit.IDLE_RESUME && !selectedDistrict && !orbit.dragging) {
         orbit.userControlling = false;
-        _idle = orbit.theta;
+        orbit.returning = true;
+      }
+    } else if (orbit.returning) {
+      var lerpSpeed = dt * 2.5;
+      orbit.theta += (orbit.HOME_THETA - orbit.theta) * lerpSpeed;
+      orbit.phi += (orbit.HOME_PHI - orbit.phi) * lerpSpeed;
+      orbit.radius += (orbit.HOME_RADIUS - orbit.radius) * lerpSpeed;
+      orbit.target.lerp(OVERVIEW.look, lerpSpeed);
+
+      var op = orbitToPosition();
+      camera.position.lerp(op, lerpSpeed * 2);
+      camera.lookAt(orbit.target);
+      currentCamLook.copy(orbit.target);
+      targetCamPos.copy(op);
+      targetCamLook.copy(orbit.target);
+
+      var dTheta = Math.abs(orbit.theta - orbit.HOME_THETA);
+      var dPhi = Math.abs(orbit.phi - orbit.HOME_PHI);
+      var dRadius = Math.abs(orbit.radius - orbit.HOME_RADIUS);
+      if (dTheta < 0.005 && dPhi < 0.005 && dRadius < 0.1) {
+        orbit.theta = orbit.HOME_THETA;
+        orbit.phi = orbit.HOME_PHI;
+        orbit.radius = orbit.HOME_RADIUS;
+        orbit.returning = false;
+        _idle = orbit.HOME_THETA;
+        updateCompassRotation();
       }
     } else if (selectedDistrict) {
-      // Zoomed into a district — smooth lerp to target
       camera.position.lerp(targetCamPos, dt * 2.5);
       currentCamLook.lerp(targetCamLook, dt * 2.5);
       camera.lookAt(currentCamLook);
     } else {
-      // Idle auto-rotation — very slow gentle spin
       _idle += dt * 0.08;
       orbit.theta = _idle;
       var op = orbitToPosition();
@@ -1739,6 +2102,8 @@ var TelcoCity = (function () {
       targetCamPos.copy(op);
       targetCamLook.copy(orbit.target);
     }
+
+    updateCompassRotation();
 
     // Particles drift
     if (particles) {
@@ -1788,6 +2153,7 @@ var TelcoCity = (function () {
     init: init,
     zoomToDistrict: zoomToDistrict,
     zoomToOverview: zoomToOverview,
+    resetToHome: resetToHome,
     resize: onResize,
   };
 })();

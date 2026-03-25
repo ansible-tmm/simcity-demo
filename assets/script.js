@@ -154,6 +154,11 @@ $(document).ready(function () {
     activateDistrict(districtId);
   });
 
+  $("#compass-btn").on("click", function (e) {
+    e.stopPropagation();
+    TelcoCity.resetToHome();
+  });
+
   function activateDistrict(districtId) {
     var folderName = folderMapping[districtId];
     if (!folderName) return;
@@ -269,7 +274,12 @@ $(document).ready(function () {
 
   $(document).on("keydown", function (e) {
     if (e.key === "Escape") {
-      dismissOverlay();
+      var $imageOverlay = $("#image-overlay");
+      if ($imageOverlay.hasClass("visible")) {
+        dismissOverlay();
+      } else if (currentDistrictId) {
+        $("#btnHome").trigger("click");
+      }
     }
   });
 
