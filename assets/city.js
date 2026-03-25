@@ -7,11 +7,15 @@ var TelcoCity = (function () {
   var particles;
   var traffic = [];
   var onDistrictClick = null;
+  var onBillboardClick = null;
   var selectedDistrict = null;
+  var selectedPartner = null;
   var hoveredDistrict = null;
+  var hoveredBillboard = null;
   var animId = null;
   var container = null;
   var labelEls = {};
+  var billboards = {};
 
   var OVERVIEW = {
     pos: new THREE.Vector3(0, 55, 65),
@@ -30,6 +34,26 @@ var TelcoCity = (function () {
     run: {
       pos: new THREE.Vector3(32, 28, 38),
       look: new THREE.Vector3(28, 0, -2),
+    },
+  };
+
+  var PARTNER_AREA_CAM = {
+    pos: new THREE.Vector3(0, 18, 0),
+    look: new THREE.Vector3(0, 6, -35),
+  };
+
+  var PARTNER_CAMS = {
+    splunk: {
+      pos: new THREE.Vector3(-12, 10, -24),
+      look: new THREE.Vector3(-12, 6, -35),
+    },
+    servicenow: {
+      pos: new THREE.Vector3(0, 10, -24),
+      look: new THREE.Vector3(0, 6, -35),
+    },
+    instana: {
+      pos: new THREE.Vector3(12, 10, -24),
+      look: new THREE.Vector3(12, 6, -35),
     },
   };
 
@@ -72,9 +96,10 @@ var TelcoCity = (function () {
     return (_seed - 1) / 2147483646;
   }
 
-  function init(el, clickCb) {
+  function init(el, clickCb, bbClickCb) {
     container = el;
     onDistrictClick = clickCb;
+    onBillboardClick = bbClickCb || null;
 
     scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f1525);
@@ -107,6 +132,7 @@ var TelcoCity = (function () {
     clock = new THREE.Clock();
 
     buildCity();
+    addBillboards();
     addLighting();
     addParticles();
     addTraffic();
@@ -184,6 +210,164 @@ var TelcoCity = (function () {
     makeDistrict("crawl", -28, 0, 0x3b82f6, 0x93c5fd);
     makeDistrict("walk", 0, 0, 0xa855f7, 0xd8b4fe);
     makeDistrict("run", 28, 0, 0xee0000, 0xfca5a5);
+  }
+
+  var billboardFade = { target: 0, current: 0 };
+
+  function loadLogoTexture(src, callback) {
+    var img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = function () {
+      var tex = new THREE.Texture(img);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.needsUpdate = true;
+      callback(tex);
+    };
+    img.src = src;
+  }
+
+  function addBillboards() {
+    var partnerDefs = [
+      { id: "splunk", x: -12, z: -35, logo: (typeof SPLUNK_LOGO_DATA !== "undefined" ? SPLUNK_LOGO_DATA : "assets/images/splunk-logo.png"), accent: 0x65a637 },
+      { id: "servicenow", x: 0, z: -35, logo: "https://ansible-tmm.github.io/solution-guides/assets/images/servicenow-logo.png", accent: 0x81b5a1 },
+      { id: "instana", x: 12, z: -35, logo: "https://ansible-tmm.github.io/solution-guides/assets/images/instana-logo.png", accent: 0x4fa0c7 },
+    ];
+
+    var boardW = 10, boardH = 6;
+    var poleH = 4;
+
+    for (var i = 0; i < partnerDefs.length; i++) {
+      (function (def) {
+        var group = new THREE.Group();
+        group.position.set(def.x, 0, def.z);
+        group.visible = false;
+
+        // Poles
+        var poleMat = new THREE.MeshStandardMaterial({ color: 0x4a5a78, metalness: 0.6, roughness: 0.3 });
+        var poleGeo = new THREE.CylinderGeometry(0.15, 0.2, poleH, 8);
+        var poleL = new THREE.Mesh(poleGeo, poleMat);
+        poleL.position.set(-boardW / 2 + 0.5, poleH / 2, 0);
+        group.add(poleL);
+        var poleR = new THREE.Mesh(poleGeo, poleMat);
+        poleR.position.set(boardW / 2 - 0.5, poleH / 2, 0);
+        group.add(poleR);
+
+        // Frame - lighter than ground for contrast
+        var frameMat = new THREE.MeshStandardMaterial({ color: 0x2a3550, metalness: 0.3, roughness: 0.5 });
+        var frameGeo = new THREE.BoxGeometry(boardW + 0.6, boardH + 0.6, 0.3);
+        var frame = new THREE.Mesh(frameGeo, frameMat);
+        frame.position.set(0, poleH + boardH / 2, 0);
+        group.add(frame);
+
+        // Accent edges
+        var edgeMat = new THREE.MeshStandardMaterial({ color: def.accent, emissive: def.accent, emissiveIntensity: 0.5 });
+        var topEdge = new THREE.Mesh(new THREE.BoxGeometry(boardW + 0.8, 0.12, 0.4), edgeMat);
+        topEdge.position.set(0, poleH + boardH + 0.3, 0.05);
+        group.add(topEdge);
+        var botEdge = new THREE.Mesh(new THREE.BoxGeometry(boardW + 0.8, 0.12, 0.4), edgeMat);
+        botEdge.position.set(0, poleH - 0.02, 0.05);
+        group.add(botEdge);
+
+        // Screen face - white/light for contrast with dark scene
+        var screenMat = new THREE.MeshStandardMaterial({ color: 0xf0f0f0, roughness: 0.6, metalness: 0.0 });
+        var screenGeo = new THREE.PlaneGeometry(boardW, boardH);
+        var screenMesh = new THREE.Mesh(screenGeo, screenMat);
+        screenMesh.position.set(0, poleH + boardH / 2, 0.17);
+        group.add(screenMesh);
+
+        // Logo texture (uses <img> for file:// compatibility)
+        loadLogoTexture(def.logo, function (tex) {
+          var aspect = tex.image.width / tex.image.height;
+          var logoH = boardH * 0.65;
+          var logoW = logoH * aspect;
+          if (logoW > boardW * 0.85) {
+            logoW = boardW * 0.85;
+            logoH = logoW / aspect;
+          }
+          var logoMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true });
+          var logoGeo = new THREE.PlaneGeometry(logoW, logoH);
+          var logoMesh = new THREE.Mesh(logoGeo, logoMat);
+          logoMesh.position.set(0, poleH + boardH / 2, 0.19);
+          logoMesh.userData._billboardPartner = def.id;
+          group.add(logoMesh);
+        });
+
+        // Light fixture housings
+        var spotGeo = new THREE.BoxGeometry(0.5, 0.2, 0.5);
+        var spotMat = new THREE.MeshStandardMaterial({ color: 0x888888, metalness: 0.7, roughness: 0.2 });
+        var spotL = new THREE.Mesh(spotGeo, spotMat);
+        spotL.position.set(-boardW / 4, poleH + boardH + 0.45, 0.4);
+        spotL.rotation.x = 0.4;
+        group.add(spotL);
+        var spotR = new THREE.Mesh(spotGeo, spotMat);
+        spotR.position.set(boardW / 4, poleH + boardH + 0.45, 0.4);
+        spotR.rotation.x = 0.4;
+        group.add(spotR);
+
+        // SpotLights pointing down at the billboard face
+        var spotLightL = new THREE.SpotLight(0xffffff, 3, 12, Math.PI / 5, 0.5, 1);
+        spotLightL.position.set(-boardW / 4, poleH + boardH + 0.6, 1.2);
+        spotLightL.target.position.set(-boardW / 4, poleH + boardH / 2 - 1, 0.17);
+        group.add(spotLightL);
+        group.add(spotLightL.target);
+
+        var spotLightR = new THREE.SpotLight(0xffffff, 3, 12, Math.PI / 5, 0.5, 1);
+        spotLightR.position.set(boardW / 4, poleH + boardH + 0.6, 1.2);
+        spotLightR.target.position.set(boardW / 4, poleH + boardH / 2 - 1, 0.17);
+        group.add(spotLightR);
+        group.add(spotLightR.target);
+
+        // Subtle ambient glow
+        var glow = new THREE.PointLight(def.accent, 0.6, 10);
+        glow.position.set(0, poleH + boardH / 2, 2);
+        group.add(glow);
+
+        group.traverse(function (child) {
+          if (child.isMesh) {
+            child.userData._billboardPartner = def.id;
+          }
+        });
+
+        billboards[def.id] = group;
+        scene.add(group);
+      })(partnerDefs[i]);
+    }
+  }
+
+  function showBillboards() {
+    billboardFade.target = 1;
+    Object.keys(billboards).forEach(function (k) {
+      billboards[k].visible = true;
+    });
+  }
+
+  function hideBillboards() {
+    billboardFade.target = 0;
+  }
+
+  function updateBillboardFade(dt) {
+    if (billboardFade.current === billboardFade.target) return;
+    var speed = 2.5;
+    if (billboardFade.target > billboardFade.current) {
+      billboardFade.current = Math.min(1, billboardFade.current + dt * speed);
+    } else {
+      billboardFade.current = Math.max(0, billboardFade.current - dt * speed);
+    }
+    var opacity = billboardFade.current;
+    Object.keys(billboards).forEach(function (k) {
+      billboards[k].traverse(function (child) {
+        if (child.isMesh && child.material) {
+          if (child.material._origOpacity === undefined) {
+            child.material._origOpacity = child.material.opacity !== undefined ? child.material.opacity : 1;
+          }
+          child.material.transparent = true;
+          child.material.opacity = child.material._origOpacity * opacity;
+        }
+      });
+      if (opacity <= 0) {
+        billboards[k].visible = false;
+      }
+    });
   }
 
   var DISTRICT_STYLES = {
@@ -1842,7 +2026,7 @@ var TelcoCity = (function () {
   }
 
   function resetToHome() {
-    if (selectedDistrict) return;
+    if (selectedDistrict || selectedPartner) return;
     orbit.userControlling = false;
     orbit.returning = true;
     orbit.dragging = false;
@@ -1926,6 +2110,10 @@ var TelcoCity = (function () {
       renderer.domElement.style.cursor = "";
       return;
     }
+    if (selectedPartner && selectedPartner !== "_area") {
+      renderer.domElement.style.cursor = "";
+      return;
+    }
     raycaster.setFromCamera(mouse, camera);
 
     // Check rocket hover
@@ -1939,9 +2127,35 @@ var TelcoCity = (function () {
         hlDistrict(hoveredDistrict, false);
         hoveredDistrict = null;
       }
+      hoveredBillboard = null;
       renderer.domElement.style.cursor = "pointer";
       return;
     }
+
+    // Check billboard hover
+    var bbMeshes = [];
+    Object.keys(billboards).forEach(function (k) {
+      billboards[k].traverse(function (c) {
+        if (c.isMesh) {
+          c.userData._bp = k;
+          bbMeshes.push(c);
+        }
+      });
+    });
+    var bbHits = raycaster.intersectObjects(bbMeshes, false);
+    if (bbHits.length) {
+      var newBB = bbHits[0].object.userData._bp || null;
+      if (newBB !== hoveredBillboard) {
+        hoveredBillboard = newBB;
+      }
+      if (hoveredDistrict) {
+        hlDistrict(hoveredDistrict, false);
+        hoveredDistrict = null;
+      }
+      renderer.domElement.style.cursor = "pointer";
+      return;
+    }
+    hoveredBillboard = null;
 
     // Check district hover
     var meshes = [];
@@ -1983,8 +2197,9 @@ var TelcoCity = (function () {
   function onClickHandler() {
     if (_dragMoved) return;
 
-    // Check if rocket was clicked
     raycaster.setFromCamera(mouse, camera);
+
+    // Check if rocket was clicked
     var rocketMeshes = [];
     scene.traverse(function (obj) {
       if (obj.isMesh && obj.userData._isRocket) rocketMeshes.push(obj);
@@ -1992,6 +2207,13 @@ var TelcoCity = (function () {
     var rocketHits = raycaster.intersectObjects(rocketMeshes, false);
     if (rocketHits.length) {
       triggerRocketLaunch();
+      return;
+    }
+
+    // Check if billboard was clicked (allow in overview or partner area)
+    if (hoveredBillboard && (!selectedPartner || selectedPartner === "_area") && onBillboardClick) {
+      zoomToPartner(hoveredBillboard);
+      onBillboardClick(hoveredBillboard);
       return;
     }
 
@@ -2035,10 +2257,11 @@ var TelcoCity = (function () {
   function zoomToOverview() {
     if (selectedDistrict) hlDistrict(selectedDistrict, false);
     selectedDistrict = null;
+    selectedPartner = null;
     hoveredDistrict = null;
+    hoveredBillboard = null;
     orbit.userControlling = false;
     orbit.target.copy(OVERVIEW.look);
-    // Sync orbit angles to overview position
     var dx = OVERVIEW.pos.x - OVERVIEW.look.x;
     var dy = OVERVIEW.pos.y - OVERVIEW.look.y;
     var dz = OVERVIEW.pos.z - OVERVIEW.look.z;
@@ -2047,6 +2270,39 @@ var TelcoCity = (function () {
     orbit.theta = Math.atan2(dx, dz);
     targetCamPos.copy(OVERVIEW.pos);
     targetCamLook.copy(OVERVIEW.look);
+  }
+
+  function zoomToPartnerArea() {
+    selectedPartner = "_area";
+    selectedDistrict = null;
+    orbit.userControlling = false;
+    var cam = PARTNER_AREA_CAM;
+    orbit.target.copy(cam.look);
+    var dx = cam.pos.x - cam.look.x;
+    var dy = cam.pos.y - cam.look.y;
+    var dz = cam.pos.z - cam.look.z;
+    orbit.radius = Math.sqrt(dx * dx + dy * dy + dz * dz);
+    orbit.phi = Math.acos(dy / orbit.radius);
+    orbit.theta = Math.atan2(dx, dz);
+    targetCamPos.copy(cam.pos);
+    targetCamLook.copy(cam.look);
+  }
+
+  function zoomToPartner(partnerId) {
+    selectedPartner = partnerId;
+    orbit.userControlling = false;
+    var cam = PARTNER_CAMS[partnerId];
+    if (cam) {
+      orbit.target.copy(cam.look);
+      var dx = cam.pos.x - cam.look.x;
+      var dy = cam.pos.y - cam.look.y;
+      var dz = cam.pos.z - cam.look.z;
+      orbit.radius = Math.sqrt(dx * dx + dy * dy + dz * dz);
+      orbit.phi = Math.acos(dy / orbit.radius);
+      orbit.theta = Math.atan2(dx, dz);
+      targetCamPos.copy(cam.pos);
+      targetCamLook.copy(cam.look);
+    }
   }
 
   var _idle = 0;
@@ -2092,7 +2348,7 @@ var TelcoCity = (function () {
         _idle = orbit.HOME_THETA;
         updateCompassRotation();
       }
-    } else if (selectedDistrict) {
+    } else if (selectedDistrict || selectedPartner) {
       camera.position.lerp(targetCamPos, dt * 2.5);
       currentCamLook.lerp(targetCamLook, dt * 2.5);
       camera.lookAt(currentCamLook);
@@ -2121,6 +2377,7 @@ var TelcoCity = (function () {
 
     // Traffic
     animateTraffic(t, dt);
+    updateBillboardFade(dt);
 
     // Animate beacons, rings, signals
     scene.traverse(function (obj) {
@@ -2157,6 +2414,10 @@ var TelcoCity = (function () {
     init: init,
     zoomToDistrict: zoomToDistrict,
     zoomToOverview: zoomToOverview,
+    zoomToPartnerArea: zoomToPartnerArea,
+    zoomToPartner: zoomToPartner,
+    showBillboards: showBillboards,
+    hideBillboards: hideBillboards,
     resetToHome: resetToHome,
     resize: onResize,
   };

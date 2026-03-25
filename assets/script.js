@@ -147,17 +147,179 @@ $(document).ready(function () {
   var currentContentPath = null;
   var currentContentFilename = null;
   var currentDistrictId = null;
+  var currentPartnerId = null;
+  var partnerAreaActive = false;
+
+  // ─── Partner Definitions ───
+  var partnerData = {
+    splunk: {
+      name: "Splunk",
+      logo: "https://ansible-tmm.github.io/solution-guides/assets/images/splunk-logo.png",
+      guideUrl: "https://ansible-tmm.github.io/solution-guides/README-AIOps-Splunk-ITSI",
+    },
+    servicenow: {
+      name: "ServiceNow",
+      logo: "https://ansible-tmm.github.io/solution-guides/assets/images/servicenow-logo.png",
+      guideUrl: "https://ansible-tmm.github.io/solution-guides/README-AIOps-ServiceNow",
+    },
+    instana: {
+      name: "Instana",
+      logo: "https://ansible-tmm.github.io/solution-guides/assets/images/instana-logo.png",
+      guideUrl: "https://ansible-tmm.github.io/solution-guides/README-Instana-AIOps",
+    },
+  };
 
   // ─── Initialize 3D City ───
   var cityContainer = document.getElementById("city-container");
-  TelcoCity.init(cityContainer, function (districtId) {
-    activateDistrict(districtId);
-  });
+  TelcoCity.init(
+    cityContainer,
+    function (districtId) {
+      activateDistrict(districtId);
+    },
+    function (partnerId) {
+      activatePartner(partnerId);
+    }
+  );
 
   $("#compass-btn").on("click", function (e) {
     e.stopPropagation();
     TelcoCity.resetToHome();
   });
+
+  // ─── Partners Button ───
+  $("#partners-btn").on("click", function (e) {
+    e.stopPropagation();
+    enterPartnerArea();
+  });
+
+  function enterPartnerArea() {
+    partnerAreaActive = true;
+    currentPartnerId = null;
+    $("#landingPage").addClass("hidden");
+    $("#aiops-header").addClass("hidden");
+    $("#bottom-menu").addClass("visible");
+    TelcoCity.showBillboards();
+    TelcoCity.zoomToPartnerArea();
+  }
+
+  function activatePartner(partnerId) {
+    var partner = partnerData[partnerId];
+    if (!partner) return;
+
+    currentPartnerId = partnerId;
+    partnerAreaActive = true;
+
+    $("#landingPage").addClass("hidden");
+    $("#aiops-header").addClass("hidden");
+    TelcoCity.showBillboards();
+
+    var $ph = $("#partner-heading");
+    $ph.empty().append('<span class="heading-title">' + partner.name + "</span>");
+    $ph.addClass("visible");
+
+    $("#bottom-menu").addClass("visible");
+
+    setTimeout(function () {
+      buildPartnerMenu(partnerId);
+      $("#partner-menu").removeClass("hidden").addClass("visible");
+    }, 400);
+  }
+
+  function deactivatePartner() {
+    currentPartnerId = null;
+    partnerAreaActive = false;
+    hideOverlayContent();
+    $("#partner-heading").removeClass("visible");
+    $("#partner-menu").removeClass("visible").addClass("hidden");
+    $("#bottom-menu").removeClass("visible");
+    TelcoCity.hideBillboards();
+  }
+
+  function buildPartnerMenu(partnerId) {
+    var $menu = $("#partner-menu-items");
+    $menu.empty();
+    var partner = partnerData[partnerId];
+    if (!partner) return;
+
+    var items = [
+      { label: "Overview", action: "overview" },
+      { label: "Demo", action: "demo" },
+      { label: "Solution Guide", action: "guide" },
+    ];
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var $btn = $("<div>")
+        .addClass("partner-menu-btn")
+        .text(item.label)
+        .data("partner-action", item.action)
+        .data("partner-id", partnerId);
+      $menu.append($btn);
+    }
+  }
+
+  $(document).on("click", ".partner-menu-btn", function () {
+    var action = $(this).data("partner-action");
+    var partnerId = $(this).data("partner-id");
+    var partner = partnerData[partnerId];
+    if (!partner) return;
+
+    $(".partner-menu-btn").removeClass("on");
+    $(this).addClass("on");
+
+    if (action === "guide") {
+      displaySolutionGuide(partner.guideUrl, partner.name);
+    } else if (action === "overview") {
+      displayPartnerPlaceholder(partner.name, "Overview");
+    } else if (action === "demo") {
+      displayPartnerPlaceholder(partner.name, "Demo");
+    }
+  });
+
+  function displaySolutionGuide(url, partnerName) {
+    var $imageOverlay = $("#image-overlay");
+    hideOverlayContent();
+
+    setTimeout(function () {
+      $imageOverlay.addClass("embed-active").html(
+        '<div class="monitor-frame">' +
+          '<div class="monitor-topbar">' +
+            '<span class="monitor-dot red"></span>' +
+            '<span class="monitor-dot yellow"></span>' +
+            '<span class="monitor-dot green"></span>' +
+            '<span class="monitor-url">' + url + '</span>' +
+          '</div>' +
+          '<iframe src="' + url + '" title="' + partnerName + ' Solution Guide" loading="lazy" allowfullscreen></iframe>' +
+        '</div>'
+      );
+      $imageOverlay.addClass("visible");
+      showCloseBtn();
+    }, 50);
+  }
+
+  function displayPartnerPlaceholder(partnerName, section) {
+    var accent = "#4fa0c7";
+    var svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080">' +
+      "<defs>" +
+      '<linearGradient id="bg" x1="0" y1="0" x2="1920" y2="1080" gradientUnits="userSpaceOnUse">' +
+      '<stop offset="0%" stop-color="#080c18"/>' +
+      '<stop offset="50%" stop-color="#0f1628"/>' +
+      '<stop offset="100%" stop-color="#080c18"/>' +
+      "</linearGradient>" +
+      "</defs>" +
+      '<rect width="1920" height="1080" fill="url(#bg)"/>' +
+      '<rect x="660" y="390" width="600" height="300" rx="16" fill="none" stroke="' + accent + '" stroke-width="2" opacity="0.3"/>' +
+      '<text x="960" y="510" font-family="system-ui,sans-serif" font-size="48" fill="#fff" text-anchor="middle" font-weight="800">' + partnerName + '</text>' +
+      '<text x="960" y="570" font-family="system-ui,sans-serif" font-size="28" fill="' + accent + '" text-anchor="middle" opacity="0.8">' + section + ' — Coming Soon</text>' +
+      "</svg>";
+    var encoded = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+    var $imageOverlay = $("#image-overlay");
+    $imageOverlay
+      .css("background-image", 'url("' + encoded + '")')
+      .addClass("visible");
+    showCloseBtn();
+  }
 
   function activateDistrict(districtId) {
     var folderName = folderMapping[districtId];
@@ -225,6 +387,7 @@ $(document).ready(function () {
     $("#page-heading").removeClass("visible");
     $("#bottom-menu").removeClass("visible");
     $("#main-menu").removeClass("visible");
+    deactivatePartner();
 
     setTimeout(function () {
       $("#landingPage").removeClass("hidden");
@@ -277,6 +440,8 @@ $(document).ready(function () {
       var $imageOverlay = $("#image-overlay");
       if ($imageOverlay.hasClass("visible")) {
         dismissOverlay();
+      } else if (currentPartnerId || partnerAreaActive) {
+        $("#btnHome").trigger("click");
       } else if (currentDistrictId) {
         $("#btnHome").trigger("click");
       }
