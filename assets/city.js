@@ -357,108 +357,112 @@ var TelcoCity = (function () {
     return g;
   }
 
+  var WIN_OFFSET = 0.07;
+
+  function makeWinMat(color, opacity) {
+    return new THREE.MeshBasicMaterial({
+      color: color,
+      transparent: true,
+      opacity: opacity,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+  }
+
   function addWindowsGrid(parent, w, d, h, rows, accent) {
-    var cols = Math.max(2, Math.floor(w / 0.6));
-    var winW = (w * 0.7) / cols;
+    var cols = Math.max(2, Math.floor(w / 0.5));
+    var winW = (w * 0.75) / cols;
     var winH = 0.35;
     for (var r = 0; r < rows; r++) {
-      if (rand() > 0.92) continue;
+      if (rand() > 0.97) continue;
       var y = 1 + r * 1.5;
       if (y > h - 0.5) break;
-      var op = 0.25 + rand() * 0.55;
+      var op = 0.35 + rand() * 0.5;
       var warmth = rand();
       var wColor = warmth > 0.5
         ? new THREE.Color(0xffeebb).lerp(accent, 0.3)
         : accent;
-      var wMat = new THREE.MeshBasicMaterial({
-        color: wColor,
-        transparent: true,
-        opacity: op,
-      });
+      var wMat = makeWinMat(wColor, op);
       for (var c = 0; c < cols; c++) {
-        if (rand() > 0.9) continue;
+        if (rand() > 0.95) continue;
         var xOff = -w * 0.35 + c * (w * 0.7 / cols) + winW / 2;
         var wg = new THREE.PlaneGeometry(winW * 0.8, winH);
         var wm = new THREE.Mesh(wg, wMat);
-        wm.position.set(xOff, y - h / 2, d / 2 + 0.02);
+        wm.position.set(xOff, y, d / 2 + WIN_OFFSET);
         parent.add(wm);
-        var wb = wm.clone(); wb.position.z = -(d / 2 + 0.02); wb.rotation.y = Math.PI; parent.add(wb);
+        var wb = wm.clone(); wb.position.z = -(d / 2 + WIN_OFFSET); wb.rotation.y = Math.PI; parent.add(wb);
       }
-      // Sides
-      var sCols = Math.max(2, Math.floor(d / 0.6));
+      var sCols = Math.max(2, Math.floor(d / 0.5));
       for (var sc = 0; sc < sCols; sc++) {
-        if (rand() > 0.9) continue;
+        if (rand() > 0.95) continue;
         var zOff = -d * 0.35 + sc * (d * 0.7 / sCols) + (d * 0.7 / sCols) / 2;
         var sg = new THREE.PlaneGeometry((d * 0.7 / sCols) * 0.8, winH);
         var sm = new THREE.Mesh(sg, wMat);
-        sm.position.set(w / 2 + 0.02, y - h / 2, zOff);
+        sm.position.set(w / 2 + WIN_OFFSET, y, zOff);
         sm.rotation.y = Math.PI / 2;
         parent.add(sm);
-        var sm2 = sm.clone(); sm2.position.x = -(w / 2 + 0.02); sm2.rotation.y = -Math.PI / 2; parent.add(sm2);
+        var sm2 = sm.clone(); sm2.position.x = -(w / 2 + WIN_OFFSET); sm2.rotation.y = -Math.PI / 2; parent.add(sm2);
       }
     }
   }
 
   function addWindowsHorizontal(parent, w, d, h, rows, accent) {
     for (var r = 0; r < rows; r++) {
-      if (rand() > 0.9) continue;
+      if (rand() > 0.97) continue;
       var y = 0.8 + r * 1.5;
       if (y > h - 0.5) break;
-      var op = 0.2 + rand() * 0.55;
+      var op = 0.35 + rand() * 0.5;
       var warmth = rand();
       var wColor = warmth > 0.4
         ? new THREE.Color(0xccddff).lerp(accent, 0.4)
         : accent;
-      var wMat = new THREE.MeshBasicMaterial({
-        color: wColor,
-        transparent: true,
-        opacity: op,
-      });
-      // Full-width horizontal bands
+      var wMat = makeWinMat(wColor, op);
       var bandH = 0.18 + rand() * 0.2;
       var bandW = w * (0.6 + rand() * 0.3);
       var wf = new THREE.Mesh(new THREE.PlaneGeometry(bandW, bandH), wMat);
-      wf.position.set(0, y - h / 2, d / 2 + 0.02);
+      wf.position.set(0, y, d / 2 + WIN_OFFSET);
       parent.add(wf);
-      var wb = wf.clone(); wb.position.z = -(d / 2 + 0.02); wb.rotation.y = Math.PI; parent.add(wb);
+      var wb = wf.clone(); wb.position.z = -(d / 2 + WIN_OFFSET); wb.rotation.y = Math.PI; parent.add(wb);
       var bandD = d * (0.6 + rand() * 0.3);
-      var sf = new THREE.Mesh(new THREE.PlaneGeometry(bandD, bandH), wMat.clone());
-      sf.position.set(w / 2 + 0.02, y - h / 2, 0); sf.rotation.y = Math.PI / 2; parent.add(sf);
-      var sb = sf.clone(); sb.position.x = -(w / 2 + 0.02); sb.rotation.y = -Math.PI / 2; parent.add(sb);
+      var sf = new THREE.Mesh(new THREE.PlaneGeometry(bandD, bandH), makeWinMat(wColor, op));
+      sf.position.set(w / 2 + WIN_OFFSET, y, 0); sf.rotation.y = Math.PI / 2; parent.add(sf);
+      var sb = sf.clone(); sb.position.x = -(w / 2 + WIN_OFFSET); sb.rotation.y = -Math.PI / 2; parent.add(sb);
     }
   }
 
   function addWindowsScattered(parent, w, d, h, rows, accent) {
-    var count = Math.floor(6 + rand() * 12);
+    var count = Math.floor(10 + rows * 4 + rand() * 10);
     for (var i = 0; i < count; i++) {
       var y = 0.8 + rand() * (h - 1.5);
-      var op = 0.3 + rand() * 0.55;
+      var op = 0.45 + rand() * 0.45;
       var warmth = rand();
       var wColor = warmth > 0.35
         ? new THREE.Color(0xffeeaa).lerp(accent, 0.2)
         : accent;
-      var wMat = new THREE.MeshBasicMaterial({
-        color: wColor,
-        transparent: true,
-        opacity: op,
-      });
+      var wMat = makeWinMat(wColor, op);
       var ww = 0.2 + rand() * 0.5;
       var wh = 0.2 + rand() * 0.4;
-      var face = Math.floor(rand() * 4);
-      var wMesh = new THREE.Mesh(new THREE.PlaneGeometry(ww, wh), wMat);
-      if (face === 0) {
-        wMesh.position.set((rand() - 0.5) * w * 0.7, y - h / 2, d / 2 + 0.02);
-      } else if (face === 1) {
-        wMesh.position.set((rand() - 0.5) * w * 0.7, y - h / 2, -(d / 2 + 0.02));
-        wMesh.rotation.y = Math.PI;
-      } else if (face === 2) {
-        wMesh.position.set(w / 2 + 0.02, y - h / 2, (rand() - 0.5) * d * 0.7);
-        wMesh.rotation.y = Math.PI / 2;
-      } else {
-        wMesh.position.set(-(w / 2 + 0.02), y - h / 2, (rand() - 0.5) * d * 0.7);
-        wMesh.rotation.y = -Math.PI / 2;
-      }
-      parent.add(wMesh);
+      var wGeo = new THREE.PlaneGeometry(ww, wh);
+      var xr = (rand() - 0.5) * w * 0.8;
+      var zr = (rand() - 0.5) * d * 0.8;
+
+      var wf = new THREE.Mesh(wGeo, wMat);
+      wf.position.set(xr, y, d / 2 + WIN_OFFSET);
+      parent.add(wf);
+      var wb = new THREE.Mesh(wGeo, wMat);
+      wb.position.set(xr, y, -(d / 2 + WIN_OFFSET));
+      wb.rotation.y = Math.PI;
+      parent.add(wb);
+      var wr = new THREE.Mesh(wGeo, wMat);
+      wr.position.set(w / 2 + WIN_OFFSET, y, zr);
+      wr.rotation.y = Math.PI / 2;
+      parent.add(wr);
+      var wl = new THREE.Mesh(wGeo, wMat);
+      wl.position.set(-(w / 2 + WIN_OFFSET), y, zr);
+      wl.rotation.y = -Math.PI / 2;
+      parent.add(wl);
     }
   }
 
